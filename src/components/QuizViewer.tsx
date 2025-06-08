@@ -200,19 +200,6 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
                         </div>
                       ))}
                     </div>
-                    
-                    {/* Explanation */}
-                    {question.structure.explain && question.structure.explain.text && (
-                      <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                        <div className="text-sm font-semibold text-yellow-800 mb-1">Explanation:</div>
-                        <div 
-                          className="text-sm text-yellow-700"
-                          dangerouslySetInnerHTML={{ 
-                            __html: renderHTML(question.structure.explain.text)
-                          }}
-                        />
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
