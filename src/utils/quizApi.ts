@@ -9,18 +9,18 @@ export const fetchQuizData = async (quizId: string): Promise<QuizizzResponse> =>
   try {
     console.log(`Attempting to fetch quiz data for ID: ${quizId}`);
     
-    const response = await axios.get<any>(
-      `https://quizizz.com/_api/main/quiz/${quizId}`,
-      {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'User-Agent': 'Mozilla/5.0',
-          'Origin': 'https://quizizz.com',
-          'Referer': 'https://quizizz.com/'
-        }
+    // Use our serverless function proxy instead of calling Quizizz directly
+    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const apiUrl = isDevelopment
+      ? `http://localhost:3000/api/quiz/${quizId}`
+      : `/api/quiz/${quizId}`;
+    
+    const response = await axios.get<any>(apiUrl, {
+      timeout: 15000,
+      headers: {
+        'Accept': 'application/json',
       }
-    );
+    });
     
     if (response.data?.data?.quiz) {
       const quiz = response.data.data.quiz;
