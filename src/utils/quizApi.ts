@@ -9,16 +9,16 @@ export const fetchQuizData = async (quizId: string): Promise<QuizizzResponse> =>
   try {
     console.log(`Attempting to fetch quiz data for ID: ${quizId}`);
     
-    // Use our serverless function proxy instead of calling Quizizz directly
-    const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const apiUrl = isDevelopment
-      ? `http://localhost:3000/api/quiz/${quizId}`
-      : `/api/quiz/${quizId}`;
+    // Call Quizizz API directly with the working endpoint
+    const apiUrl = `https://quizizz.com/_quizserver/main/v2/quiz/${quizId}?convertQuestions=false&includeFsFeatures=true&sanitize=read&questionMetadata=true&userRegion=CA&includeUserHydratedVariants=true`;
     
     const response = await axios.get<any>(apiUrl, {
       timeout: 15000,
       headers: {
         'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://quizizz.com/',
+        'Origin': 'https://quizizz.com',
       }
     });
     

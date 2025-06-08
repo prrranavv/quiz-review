@@ -13,7 +13,6 @@
   "dependencies": {
     "@types/dompurify": "^3.2.0",
     "@types/katex": "^0.16.7",
-    "@vercel/node": "^3.0.0",
     "axios": "^1.8.4",
     "dompurify": "^3.2.5",
     "katex": "^0.16.22",
@@ -22,7 +21,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
-    "@types/node": "^20.0.0",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
