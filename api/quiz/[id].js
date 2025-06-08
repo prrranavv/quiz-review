@@ -30,8 +30,8 @@ export default async function handler(request, response) {
   try {
     console.log(`Attempting to fetch quiz: ${id}`);
     
-    // Use the new Quizizz API endpoint
-    const testUrl = `https://quizizz.com/_quizserver/main/v2/quiz/${id}?convertQuestionMetadata=true&userRegion=CA&includeUserHydratedVariants=true`;
+    // Use the working Quizizz API endpoint
+    const testUrl = `https://quizizz.com/_quizserver/main/v2/quiz/${id}?convertQuestions=false&includeFsFeatures=true&sanitize=read&questionMetadata=true&userRegion=CA&includeUserHydratedVariants=true`;
     console.log('Making request to:', testUrl);
     
     // Make request to Quizizz API
