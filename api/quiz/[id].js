@@ -30,8 +30,8 @@ export default async function handler(request, response) {
   try {
     console.log(`Attempting to fetch quiz: ${id}`);
     
-    // Test basic connectivity first
-    const testUrl = `https://quizizz.com/_api/main/quiz/${id}`;
+    // Use the new Quizizz API endpoint
+    const testUrl = `https://quizizz.com/_quizserver/main/v2/quiz/${id}?convertQuestionMetadata=true&userRegion=CA&includeUserHydratedVariants=true`;
     console.log('Making request to:', testUrl);
     
     // Make request to Quizizz API
@@ -44,6 +44,7 @@ export default async function handler(request, response) {
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Referer': 'https://quizizz.com/',
+        'Origin': 'https://quizizz.com',
       },
     });
 
