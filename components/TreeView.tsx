@@ -85,26 +85,28 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
   return (
     <div>
       <div
-        className={`flex items-center py-2 px-2 cursor-pointer hover:bg-gray-50 transition-colors ${
+        className={`flex items-start py-2 px-2 cursor-pointer hover:bg-gray-50 transition-colors ${
           isSelected ? 'bg-blue-50 border-r-2 border-blue-500' : ''
         }`}
         style={{ paddingLeft }}
         onClick={node.type === 'quiz' ? handleQuizClick : handleToggle}
       >
-        <div className="flex items-center flex-1 min-w-0">
-          <div className="flex-shrink-0 mr-2">
+        <div className="flex items-start flex-1 min-w-0">
+          <div className="flex-shrink-0 mr-2 mt-1">
             {getExpandIcon()}
           </div>
-          <div className="flex-shrink-0 mr-3">
+          <div className="flex-shrink-0 mr-3 mt-1">
             {getIcon()}
           </div>
-          <div className="truncate">
-            <span className={`text-sm ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+          <div className="flex-1 min-w-0">
+            <div className={`text-sm leading-5 ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
               {node.name}
-            </span>
+            </div>
             {node.type === 'quiz' && (
-              <div className="text-xs text-gray-500 truncate">
-                {node.quizId?.substring(0, 12)}...
+              <div className="text-xs text-gray-500 mt-1">
+                <div className="font-mono text-xs break-all bg-gray-50 px-2 py-1 rounded">
+                  {node.quizId}
+                </div>
               </div>
             )}
           </div>

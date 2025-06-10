@@ -81,11 +81,8 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
             <div className="flex items-center space-x-4">
               {/* Quiz Info */}
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-1">{selectedQuiz.title}</h2>
-                <div className="flex items-center space-x-4 text-sm text-gray-600">
-                  <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
-                    Quiz ID: {selectedQuiz.id}
-                  </span>
+                <h2 className="text-lg font-semibold text-gray-900 mb-2">{selectedQuiz.title}</h2>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mb-2">
                   {selectedQuiz.domain && (
                     <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
                       {selectedQuiz.domain}
@@ -101,6 +98,9 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
                       {selectedQuiz.standard}
                     </span>
                   )}
+                </div>
+                <div className="font-mono text-xs bg-gray-100 px-3 py-2 rounded border">
+                  Quiz ID: {selectedQuiz.id}
                 </div>
               </div>
             </div>
