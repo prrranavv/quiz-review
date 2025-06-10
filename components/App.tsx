@@ -1,42 +1,268 @@
 import React, { useState, useCallback } from 'react';
+import { useRouter } from 'next/router';
 import { QuizSummary, CSVQuizData } from '../types';
 import CSVUpload from './CSVUpload';
-import QuizViewer from './QuizViewer';
 import Modal from './Modal';
+import FileGrid from './FileGrid';
+import Notification from './Notification';
+import Navigation from './Navigation';
+import { uploadFile, isSupabaseConfigured } from '../utils/supabase';
+import { parseCSVToQuizSummaries } from '../utils/treeBuilder';
 
 function App() {
+  const router = useRouter();
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showFileGrid, setShowFileGrid] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Notification state
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    isVisible: boolean;
+  }>({
+    message: '',
+    type: 'info',
+    isVisible: false
+  });
 
-  const handleQuizIdsExtracted = useCallback(async (quizData: CSVQuizData[]) => {
-    setLoading(true);
-    setIsUploadModalOpen(false); // Close modal when processing starts
-    
-    // Create quiz summaries from CSV data (no API calls needed for iframe approach)
-    const quizSummaries: QuizSummary[] = quizData.map(quiz => ({
-      id: quiz.id,
-      title: `Quiz ${quiz.id.substring(0, 8)}...`,
-      questionCount: 0, // Not needed for iframe approach
-      status: 'loaded', // Always loaded since we're just showing iframe
-      standard: quiz.standard,
-      subject: quiz.subject,
-      grade: quiz.grade,
-      topic: quiz.topic,
-    }));
-    
-    setQuizzes(quizSummaries);
-    setLoading(false);
-  }, []);
-
-  const handleNewUpload = () => {
-    setQuizzes([]);
-    setIsUploadModalOpen(true);
+  const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
+    setNotification({ message, type, isVisible: true });
   };
 
-  // If we have quizzes loaded, show the quiz viewer
-  if (quizzes.length > 0) {
-    return <QuizViewer quizzes={quizzes} onBack={handleNewUpload} />;
+  const hideNotification = () => {
+    setNotification(prev => ({ ...prev, isVisible: false }));
+  };
+
+  const navigateToResources = (quizData: CSVQuizData[]) => {
+    // Create quiz summaries from CSV data using the new utility
+    const quizSummaries = parseCSVToQuizSummaries(quizData);
+    
+    // Save to localStorage and navigate
+    localStorage.setItem('quizData', JSON.stringify(quizSummaries));
+    router.push('/resources');
+  };
+
+  const handleQuizIdsExtracted = useCallback(async (quizData: CSVQuizData[], file: File) => {
+    setLoading(true);
+    setIsUploadModalOpen(false);
+    
+    try {
+      // Try to upload file to Supabase (if configured)
+      let uploadSuccess = false;
+      try {
+        if (isSupabaseConfigured()) {
+          const timestamp = Date.now();
+          const fileName = `${timestamp}-${file.name}`;
+          await uploadFile(file, fileName);
+          uploadSuccess = true;
+          console.log('File uploaded successfully to Supabase');
+        } else {
+          console.log('Supabase not configured - file processed locally only');
+        }
+      } catch (uploadError) {
+        console.warn('File upload to Supabase failed:', uploadError);
+      }
+      
+      setRefreshTrigger(prev => prev + 1); // Trigger file grid refresh
+      
+      // Show success notification
+      const message = uploadSuccess 
+        ? `Successfully processed ${quizData.length} quizzes and saved to cloud storage`
+        : `Successfully processed ${quizData.length} quizzes (local processing only - configure Supabase for cloud storage)`;
+      showNotification(message, uploadSuccess ? 'success' : 'warning');
+      
+      // Navigate to resources page
+      navigateToResources(quizData);
+      
+    } catch (error) {
+      console.error('Error processing file:', error);
+      showNotification('Failed to process file. Please check the file format and try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  const handleFileSelect = async (fileName: string, fileData: Blob) => {
+    try {
+      const text = await fileData.text();
+      const quizData = parseCSV(text);
+      
+      if (quizData.length === 0) {
+        showNotification('No quiz IDs found in the selected file.', 'error');
+        return;
+      }
+      
+      showNotification(`Loaded ${quizData.length} quizzes from ${fileName}`, 'success');
+      
+      // Navigate to resources page
+      navigateToResources(quizData);
+      
+    } catch (error) {
+      console.error('Error processing file:', error);
+      showNotification('Failed to process the selected file.', 'error');
+    }
+  };
+
+  const parseCSV = (csvText: string): CSVQuizData[] => {
+    const lines = csvText.split('\n').filter(line => line.trim());
+    if (lines.length === 0) return [];
+    
+    // Get headers from first line
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
+    const quizData: CSVQuizData[] = [];
+    
+    // Find column indices for new hierarchical format
+    const domainColumn = headers.findIndex(h => 
+      h.includes('domain') || h.includes('subject area')
+    );
+    const topicColumn = headers.findIndex(h => 
+      h.includes('topic') || h.includes('chapter') || h.includes('unit')
+    );
+    const standardColumn = headers.findIndex(h => 
+      h.includes('standard') || h.includes('std')
+    );
+    const descriptionColumn = headers.findIndex(h => 
+      h.includes('description') || h.includes('desc')
+    );
+    const titleColumn = headers.findIndex(h => 
+      h.includes('quiz title') || h.includes('title') || h.includes('name')
+    );
+    const numQuestionsColumn = headers.findIndex(h => 
+      h.includes('num questions') || h.includes('question count') || h.includes('questions')
+    );
+    
+    // Find quiz ID columns
+    const quizIdColumns = headers.map((h, i) => 
+      (h.includes('quiz') && h.includes('id')) || 
+      h.includes('quizizz') || 
+      h === 'id' ? i : -1
+    ).filter(i => i >= 0);
+    
+    // Legacy column detection for backward compatibility
+    const subjectColumn = headers.findIndex(h => 
+      h.includes('subject') || h.includes('course')
+    );
+    const gradeColumn = headers.findIndex(h => 
+      h.includes('grade') || h.includes('level')
+    );
+    
+    // Process data rows
+    for (let i = 1; i < lines.length; i++) {
+      const cells = lines[i].split(',').map(cell => cell.trim().replace(/"/g, ''));
+      let quizId: string | null = null;
+      
+      // Try to find quiz ID
+      for (const colIndex of quizIdColumns) {
+        if (colIndex < cells.length) {
+          const cell = cells[colIndex];
+          if (cell && /^[a-fA-F0-9]{20,}$/.test(cell)) {
+            quizId = cell;
+            break;
+          } else if (cell.includes('quizizz.com') && cell.includes('/')) {
+            const match = cell.match(/\/([a-fA-F0-9]{20,})/);
+            if (match) {
+              quizId = match[1];
+              break;
+            }
+          }
+        }
+      }
+      
+      if (!quizId) {
+        for (const cell of cells) {
+          if (cell && /^[a-fA-F0-9]{20,}$/.test(cell)) {
+            quizId = cell;
+            break;
+          } else if (cell.includes('quizizz.com') && cell.includes('/')) {
+            const match = cell.match(/\/([a-fA-F0-9]{20,})/);
+            if (match) {
+              quizId = match[1];
+              break;
+            }
+          }
+        }
+      }
+      
+      if (quizId) {
+        const questionCount = numQuestionsColumn >= 0 && cells[numQuestionsColumn] 
+          ? parseInt(cells[numQuestionsColumn]) || 0 
+          : 0;
+          
+        quizData.push({
+          id: quizId,
+          // New hierarchical fields
+          domain: domainColumn >= 0 ? cells[domainColumn] || undefined : undefined,
+          topic: topicColumn >= 0 ? cells[topicColumn] || undefined : undefined,
+          standard: standardColumn >= 0 ? cells[standardColumn] || undefined : undefined,
+          description: descriptionColumn >= 0 ? cells[descriptionColumn] || undefined : undefined,
+          title: titleColumn >= 0 ? cells[titleColumn] || undefined : undefined,
+          questionCount: questionCount,
+          // Legacy fields for backward compatibility
+          subject: subjectColumn >= 0 ? cells[subjectColumn] || undefined : undefined,
+          grade: gradeColumn >= 0 ? cells[gradeColumn] || undefined : undefined,
+        });
+      }
+    }
+    
+    return quizData.filter((quiz, index, self) => 
+      index === self.findIndex(q => q.id === quiz.id)
+    );
+  };
+
+  // Show the file grid as the main interface
+  if (showFileGrid) {
+    return (
+      <>
+        <Navigation />
+        <FileGrid 
+          onFileSelect={handleFileSelect}
+          onUploadClick={() => setIsUploadModalOpen(true)}
+          refreshTrigger={refreshTrigger}
+        />
+        
+        {/* Upload Modal */}
+        <Modal
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+          title="Upload Quiz CSV"
+        >
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Select a CSV file containing Quizizz quiz IDs for bulk preview
+              </p>
+            </div>
+
+            <CSVUpload onQuizIdsExtracted={handleQuizIdsExtracted} loading={loading} onError={(message) => showNotification(message, 'error')} />
+
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h4 className="font-medium text-gray-900 mb-2">Supported formats:</h4>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>• Raw quiz IDs: <code className="bg-white px-2 py-1 rounded text-xs">5f7d6b8c9e1234567890abcd</code></p>
+                <p>• Full URLs: <code className="bg-white px-2 py-1 rounded text-xs">https://quizizz.com/admin/quiz/...</code></p>
+                <p>• Hierarchical CSV: Domain → Topic → Standard → Quiz structure</p>
+                <p>• Legacy support: Subject, Grade columns for backward compatibility</p>
+              </div>
+            </div>
+          </div>
+        </Modal>
+        
+        {/* Notification */}
+        <Notification
+          message={notification.message}
+          type={notification.type}
+          isVisible={notification.isVisible}
+          onClose={hideNotification}
+        />
+      </>
+    );
   }
 
   return (
@@ -119,7 +345,7 @@ function App() {
             </p>
           </div>
 
-          <CSVUpload onQuizIdsExtracted={handleQuizIdsExtracted} loading={loading} />
+          <CSVUpload onQuizIdsExtracted={handleQuizIdsExtracted} loading={loading} onError={(message) => showNotification(message, 'error')} />
 
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-2">Supported formats:</h4>
@@ -131,6 +357,14 @@ function App() {
           </div>
         </div>
       </Modal>
+      
+      {/* Notification */}
+      <Notification
+        message={notification.message}
+        type={notification.type}
+        isVisible={notification.isVisible}
+        onClose={hideNotification}
+      />
     </>
   );
 }

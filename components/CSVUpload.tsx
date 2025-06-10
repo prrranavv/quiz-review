@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { CSVQuizData } from '../types';
 
 interface CSVUploadProps {
-  onQuizIdsExtracted: (quizData: CSVQuizData[]) => void;
+  onQuizIdsExtracted: (quizData: CSVQuizData[], file: File) => void;
   loading: boolean;
+  onError?: (message: string) => void;
 }
 
-const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading }) => {
+const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading, onError }) => {
   const [dragActive, setDragActive] = useState(false);
 
   const parseCSV = (csvText: string): CSVQuizData[] => {
@@ -17,24 +18,39 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading }) =>
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
     const quizData: CSVQuizData[] = [];
     
-    // Find column indices
+    // Find column indices for new hierarchical format
+    const domainColumn = headers.findIndex(h => 
+      h.includes('domain') || h.includes('subject area')
+    );
+    const topicColumn = headers.findIndex(h => 
+      h.includes('topic') || h.includes('chapter') || h.includes('unit')
+    );
+    const standardColumn = headers.findIndex(h => 
+      h.includes('standard') || h.includes('std')
+    );
+    const descriptionColumn = headers.findIndex(h => 
+      h.includes('description') || h.includes('desc')
+    );
+    const titleColumn = headers.findIndex(h => 
+      h.includes('quiz title') || h.includes('title') || h.includes('name')
+    );
+    const numQuestionsColumn = headers.findIndex(h => 
+      h.includes('num questions') || h.includes('question count') || h.includes('questions')
+    );
+    
+    // Find quiz ID columns
     const quizIdColumns = headers.map((h, i) => 
       (h.includes('quiz') && h.includes('id')) || 
       h.includes('quizizz') || 
       h === 'id' ? i : -1
     ).filter(i => i >= 0);
     
-    const standardColumn = headers.findIndex(h => 
-      h.includes('standard') || h.includes('std')
-    );
+    // Legacy column detection for backward compatibility
     const subjectColumn = headers.findIndex(h => 
       h.includes('subject') || h.includes('course')
     );
     const gradeColumn = headers.findIndex(h => 
       h.includes('grade') || h.includes('level')
-    );
-    const topicColumn = headers.findIndex(h => 
-      h.includes('topic') || h.includes('chapter') || h.includes('unit')
     );
     
     // Process data rows
@@ -76,12 +92,22 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading }) =>
       }
       
       if (quizId) {
+        const questionCount = numQuestionsColumn >= 0 && cells[numQuestionsColumn] 
+          ? parseInt(cells[numQuestionsColumn]) || 0 
+          : 0;
+          
         quizData.push({
           id: quizId,
+          // New hierarchical fields
+          domain: domainColumn >= 0 ? cells[domainColumn] || undefined : undefined,
+          topic: topicColumn >= 0 ? cells[topicColumn] || undefined : undefined,
           standard: standardColumn >= 0 ? cells[standardColumn] || undefined : undefined,
+          description: descriptionColumn >= 0 ? cells[descriptionColumn] || undefined : undefined,
+          title: titleColumn >= 0 ? cells[titleColumn] || undefined : undefined,
+          questionCount: questionCount,
+          // Legacy fields for backward compatibility
           subject: subjectColumn >= 0 ? cells[subjectColumn] || undefined : undefined,
           grade: gradeColumn >= 0 ? cells[gradeColumn] || undefined : undefined,
-          topic: topicColumn >= 0 ? cells[topicColumn] || undefined : undefined,
         });
       }
     }
@@ -96,23 +122,49 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading }) =>
 
   const handleFile = (file: File) => {
     if (!file.name.toLowerCase().endsWith('.csv')) {
-      alert('Please upload a CSV file');
+      if (onError) {
+        onError('Please upload a CSV file');
+      } else {
+        alert('Please upload a CSV file');
+      }
       return;
     }
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const csvText = e.target?.result as string;
-      const quizData = parseCSV(csvText);
-      
-      if (quizData.length === 0) {
-        alert('No quiz IDs found in the CSV file. Please ensure your CSV contains Quizizz quiz IDs.');
-        return;
+      try {
+        const csvText = e.target?.result as string;
+        const quizData = parseCSV(csvText);
+        
+        if (quizData.length === 0) {
+          if (onError) {
+            onError('No quiz IDs found in the CSV file. Please ensure your CSV contains Quizizz quiz IDs.');
+          } else {
+            alert('No quiz IDs found in the CSV file. Please ensure your CSV contains Quizizz quiz IDs.');
+          }
+          return;
+        }
+        
+        console.log(`Found ${quizData.length} quiz entries:`, quizData);
+        onQuizIdsExtracted(quizData, file);
+      } catch (error) {
+        console.error('Error parsing CSV:', error);
+        if (onError) {
+          onError('Failed to parse CSV file. Please check the file format.');
+        } else {
+          alert('Failed to parse CSV file. Please check the file format.');
+        }
       }
-      
-      console.log(`Found ${quizData.length} quiz entries:`, quizData);
-      onQuizIdsExtracted(quizData);
     };
+    
+    reader.onerror = () => {
+      if (onError) {
+        onError('Failed to read the file. Please try again.');
+      } else {
+        alert('Failed to read the file. Please try again.');
+      }
+    };
+    
     reader.readAsText(file);
   };
 
@@ -202,9 +254,10 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading }) =>
       )}
       
       <div className="text-xs text-gray-500 space-y-1">
-        <p><strong>Format:</strong> CSV with quiz IDs and optional standard/subject/grade columns</p>
+        <p><strong>Format:</strong> CSV with quiz IDs and hierarchical organization columns</p>
         <p><strong>Supports:</strong> Quiz IDs or full Quizizz URLs</p>
-        <p><strong>Columns:</strong> Automatically detects standard, subject, grade, topic columns</p>
+        <p><strong>Columns:</strong> Domain, Topic, Standard, Description, Quiz Title, Num Questions, Quiz ID</p>
+        <p><strong>Legacy:</strong> Also supports Subject, Grade columns for backward compatibility</p>
       </div>
     </div>
   );

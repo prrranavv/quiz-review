@@ -46,16 +46,21 @@ export interface QuizizzResponse {
   };
 }
 
-// CSV row data structure
+// CSV row data structure - updated with hierarchical fields
 export interface CSVQuizData {
   id: string;
+  domain?: string;
+  topic?: string;
   standard?: string;
+  description?: string;
+  title?: string;
+  questionCount?: number;
+  // Legacy fields for backward compatibility
   subject?: string;
   grade?: string;
-  topic?: string;
 }
 
-// Quiz summary for list view
+// Quiz summary for list view - updated with hierarchical fields
 export interface QuizSummary {
   id: string;
   title: string;
@@ -64,14 +69,28 @@ export interface QuizSummary {
   status: 'loading' | 'loaded' | 'error';
   data?: QuizizzResponse;
   error?: string;
-  // Metadata from CSV
+  // New hierarchical metadata
+  domain?: string;
+  topic?: string;
   standard?: string;
+  description?: string;
+  // Legacy metadata from CSV for backward compatibility
   subject?: string;
   grade?: string;
-  topic?: string;
 }
 
-// Grouped quizzes by standard
+// Hierarchical tree structure for sidebar navigation
+export interface TreeNode {
+  id: string;
+  name: string;
+  type: 'domain' | 'topic' | 'standard' | 'quiz';
+  children: TreeNode[];
+  quizId?: string;
+  isExpanded?: boolean;
+  quiz?: QuizSummary;
+}
+
+// Grouped quizzes by standard (legacy)
 export interface GroupedQuizzes {
   [standard: string]: QuizSummary[];
 }
