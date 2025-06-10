@@ -31,4 +31,4 @@ dist-ssr
 .env.production.local
 
 # Vercel
-.vercel 
+.vercel .next/
