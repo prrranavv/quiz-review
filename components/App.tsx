@@ -8,6 +8,7 @@ import Notification from './Notification';
 import Navigation from './Navigation';
 import { uploadFile, isSupabaseConfigured } from '../utils/supabase';
 import { parseCSVToQuizSummaries } from '../utils/treeBuilder';
+import { safeSetToLocalStorage } from '../utils/localStorage';
 
 function App() {
   const router = useRouter();
@@ -40,7 +41,7 @@ function App() {
     const quizSummaries = parseCSVToQuizSummaries(quizData);
     
     // Save to localStorage and navigate
-    localStorage.setItem('quizData', JSON.stringify(quizSummaries));
+    safeSetToLocalStorage('quizData', quizSummaries);
     router.push('/resources');
   };
 
@@ -263,41 +264,8 @@ function App() {
         <Navigation />
         <FileGrid 
           onFileSelect={handleFileSelect}
-          onUploadClick={() => setIsUploadModalOpen(true)}
           refreshTrigger={refreshTrigger}
         />
-        
-        {/* Upload Modal */}
-        <Modal
-          isOpen={isUploadModalOpen}
-          onClose={() => setIsUploadModalOpen(false)}
-          title="Upload Quiz CSV"
-        >
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-              </div>
-              <p className="text-gray-600 mb-6">
-                Select a CSV file containing Quizizz quiz IDs for bulk preview
-              </p>
-            </div>
-
-            <CSVUpload onQuizIdsExtracted={handleQuizIdsExtracted} loading={loading} onError={(message) => showNotification(message, 'error')} />
-
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-medium text-gray-900 mb-2">Supported formats:</h4>
-              <div className="text-sm text-gray-600 space-y-1">
-                <p>• Raw quiz IDs: <code className="bg-white px-2 py-1 rounded text-xs">5f7d6b8c9e1234567890abcd</code></p>
-                <p>• Full URLs: <code className="bg-white px-2 py-1 rounded text-xs">https://quizizz.com/admin/quiz/...</code></p>
-                <p>• Hierarchical CSV: Domain → Topic → Standard → Quiz structure</p>
-                <p>• Legacy support: Subject, Grade columns for backward compatibility</p>
-              </div>
-            </div>
-          </div>
-        </Modal>
         
         {/* Notification */}
         <Notification
@@ -322,10 +290,10 @@ function App() {
           </div>
 
           {/* Title and Description */}
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Quiz Review App</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-4">HQRL: Resources Curation</h1>
           <p className="text-gray-600 mb-8 leading-relaxed">
-            Upload a CSV file with Quizizz quiz IDs to preview multiple quizzes at once. 
-            Perfect for content review and bulk quiz browsing.
+            High Quality Resource Library for educational content curation. 
+            Upload CSV files to manage and organize your quiz resources.
           </p>
 
           {/* Upload Button */}

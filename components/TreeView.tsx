@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { TreeNode, QuizSummary } from '../types';
+import { File, Check, Search, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 interface TreeViewProps {
   nodes: TreeNode[];
   onQuizSelect: (quiz: QuizSummary) => void;
   selectedQuizId?: string;
+  reviewedQuizzes?: Set<string>;
 }
 
 interface TreeNodeComponentProps {
   node: TreeNode;
   onQuizSelect: (quiz: QuizSummary) => void;
   selectedQuizId?: string;
+  reviewedQuizzes?: Set<string>;
   level?: number;
 }
 
@@ -18,9 +22,17 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
   node, 
   onQuizSelect, 
   selectedQuizId, 
+  reviewedQuizzes,
   level = 0 
 }) => {
   const [isExpanded, setIsExpanded] = useState(node.isExpanded || false);
+  
+  // Update expansion state when node.isExpanded changes (for search filtering)
+  useEffect(() => {
+    if (node.isExpanded !== undefined) {
+      setIsExpanded(node.isExpanded);
+    }
+  }, [node.isExpanded]);
   
   const handleToggle = () => {
     if (node.children.length > 0) {
@@ -38,27 +50,25 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
     switch (node.type) {
       case 'domain':
         return (
-          <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
-          </svg>
+          <div className="w-4 h-4 bg-blue-600 text-white text-xs font-bold rounded flex items-center justify-center">
+            D
+          </div>
         );
       case 'topic':
         return (
-          <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
-          </svg>
+          <div className="w-4 h-4 bg-green-600 text-white text-xs font-bold rounded flex items-center justify-center">
+            T
+          </div>
         );
       case 'standard':
         return (
-          <svg className="w-4 h-4 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2v8h12V6H4z" clipRule="evenodd" />
-          </svg>
+          <div className="w-4 h-4 bg-yellow-600 text-white text-xs font-bold rounded flex items-center justify-center">
+            S
+          </div>
         );
       case 'quiz':
         return (
-          <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" clipRule="evenodd" />
-          </svg>
+          <File className="w-4 h-4 text-purple-600" />
         );
       default:
         return null;
@@ -99,8 +109,16 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
             {getIcon()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className={`text-sm leading-5 ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
-              {node.name}
+            <div className="flex items-center justify-between">
+              <div className={`text-sm leading-5 ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+                {node.name}
+              </div>
+              {node.type === 'quiz' && node.quizId && reviewedQuizzes?.has(node.quizId) && (
+                <div className="flex items-center text-green-600 ml-2">
+                  <Check className="w-3 h-3 mr-1" />
+                  <span className="text-xs font-medium">Reviewed</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -114,6 +132,7 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
               node={child}
               onQuizSelect={onQuizSelect}
               selectedQuizId={selectedQuizId}
+              reviewedQuizzes={reviewedQuizzes}
               level={level + 1}
             />
           ))}
@@ -123,18 +142,133 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
   );
 };
 
-const TreeView: React.FC<TreeViewProps> = ({ nodes, onQuizSelect, selectedQuizId }) => {
+const TreeView: React.FC<TreeViewProps> = ({ nodes, onQuizSelect, selectedQuizId, reviewedQuizzes }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Function to check if a node matches the search term
+  const matchesSearch = (node: TreeNode, term: string): boolean => {
+    if (!term) return true;
+    
+    const lowerTerm = term.toLowerCase();
+    
+    // Check node name
+    if (node.name.toLowerCase().includes(lowerTerm)) return true;
+    
+    // For quiz nodes, also check quiz ID and title
+    if (node.type === 'quiz' && node.quiz) {
+      if (node.quiz.id.toLowerCase().includes(lowerTerm)) return true;
+      if (node.quiz.title.toLowerCase().includes(lowerTerm)) return true;
+    }
+    
+    return false;
+  };
+
+  // Function to check if any descendant matches the search
+  const hasMatchingDescendant = (node: TreeNode, term: string): boolean => {
+    if (matchesSearch(node, term)) return true;
+    return node.children.some(child => hasMatchingDescendant(child, term));
+  };
+
+  // Function to filter and modify nodes based on search
+  const filterNodes = (nodeList: TreeNode[], term: string): TreeNode[] => {
+    if (!term) return nodeList;
+
+    return nodeList
+      .map(node => {
+        // Clone the node to avoid mutating the original
+        const filteredNode = { ...node };
+        
+        // Filter children recursively
+        filteredNode.children = filterNodes(node.children, term);
+        
+        // Include this node if it matches search or has matching descendants
+        const shouldInclude = matchesSearch(node, term) || filteredNode.children.length > 0;
+        
+        if (shouldInclude) {
+          // Expand nodes that have matching descendants but don't match themselves
+          if (!matchesSearch(node, term) && filteredNode.children.length > 0) {
+            filteredNode.isExpanded = true;
+          }
+          return filteredNode;
+        }
+        
+        return null;
+      })
+      .filter((node): node is TreeNode => node !== null);
+  };
+
+  const filteredNodes = useMemo(() => filterNodes(nodes, searchTerm), [nodes, searchTerm]);
+
+  // Count total quiz nodes in filtered tree
+  const countQuizNodes = (nodeList: TreeNode[]): number => {
+    return nodeList.reduce((count, node) => {
+      const currentCount = node.type === 'quiz' ? 1 : 0;
+      const childCount = countQuizNodes(node.children);
+      return count + currentCount + childCount;
+    }, 0);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+  };
+
   return (
-    <div className="h-full overflow-y-auto bg-white">
-      <div className="py-2">
-        {nodes.map((node) => (
-          <TreeNodeComponent
-            key={node.id}
-            node={node}
-            onQuizSelect={onQuizSelect}
-            selectedQuizId={selectedQuizId}
+    <div className="h-full flex flex-col bg-white">
+      {/* Search Bar */}
+      <div className="p-3 border-b border-gray-200">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <Input
+            type="text"
+            placeholder="Search standards, quiz IDs, titles..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-8 text-sm"
           />
-        ))}
+          {searchTerm && (
+            <button
+              onClick={clearSearch}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {searchTerm && (
+          <div className="mt-2 text-xs text-gray-500">
+            {filteredNodes.length > 0 
+              ? `Found ${countQuizNodes(filteredNodes)} quizzes` 
+              : 'No matches found'
+            }
+          </div>
+        )}
+      </div>
+
+      {/* Tree Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="py-2">
+          {filteredNodes.length > 0 ? (
+            filteredNodes.map((node) => (
+              <TreeNodeComponent
+                key={node.id}
+                node={node}
+                onQuizSelect={onQuizSelect}
+                selectedQuizId={selectedQuizId}
+                reviewedQuizzes={reviewedQuizzes}
+              />
+            ))
+          ) : searchTerm ? (
+            <div className="p-4 text-center text-gray-500">
+              <Search className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">No results found for "{searchTerm}"</p>
+              <p className="text-xs text-gray-400 mt-1">Try searching for standards, quiz IDs, or titles</p>
+            </div>
+          ) : (
+            <div className="p-4 text-center text-gray-500">
+              <p className="text-sm">Loading quiz hierarchy...</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

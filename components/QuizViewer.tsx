@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { QuizSummary, TreeNode } from '../types';
 import TreeView from './TreeView';
+import InlineFeedback from './InlineFeedback';
 import { buildTreeFromQuizzes } from '../utils/treeBuilder';
+import { saveQuickFeedback, getSpecificFeedback, getFeedbackForQuizzes } from '../utils/supabase';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Copy } from 'lucide-react';
 
 interface QuizViewerProps {
   quizzes: QuizSummary[];
@@ -12,14 +18,56 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<QuizSummary | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
+  const [showInlineFeedback, setShowInlineFeedback] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState<'thumbsUp' | 'thumbsDown' | null>(null);
+  const [existingFeedback, setExistingFeedback] = useState<any>(null);
+  const [reviewedQuizzes, setReviewedQuizzes] = useState<Set<string>>(new Set());
+  const [isViewMode, setIsViewMode] = useState(false);
+  const { toast } = useToast();
 
-  // Build tree structure from quizzes
+  // Build tree structure from quizzes and load feedback data
   useEffect(() => {
     if (quizzes.length > 0) {
       const tree = buildTreeFromQuizzes(quizzes);
       setTreeNodes(tree);
+      loadReviewedQuizzes();
     }
   }, [quizzes]);
+
+  // Load reviewed quizzes status
+  const loadReviewedQuizzes = async () => {
+    try {
+      const quizIds = quizzes.map(q => q.id);
+      const feedbackData = await getFeedbackForQuizzes('Default', quizIds);
+      const reviewed = new Set(feedbackData.map(f => f.quiz_id));
+      setReviewedQuizzes(reviewed);
+    } catch (error) {
+      console.error('Error loading reviewed quizzes:', error);
+    }
+  };
+
+  // Load specific feedback when quiz is selected
+  useEffect(() => {
+    if (selectedQuiz) {
+      loadQuizFeedback();
+    } else {
+      setExistingFeedback(null);
+      setIsViewMode(false);
+    }
+  }, [selectedQuiz]);
+
+  const loadQuizFeedback = async () => {
+    if (!selectedQuiz) return;
+    
+    try {
+      const feedback = await getSpecificFeedback('Default', selectedQuiz.standard || '', selectedQuiz.id);
+      setExistingFeedback(feedback);
+      setIsViewMode(false);
+    } catch (error) {
+      setExistingFeedback(null);
+      console.error('Error loading quiz feedback:', error);
+    }
+  };
 
   const handleQuizSelect = (quiz: QuizSummary) => {
     setSelectedQuiz(quiz);
@@ -39,6 +87,87 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
     } else {
       // Fallback to just incrementing the key
       setIframeKey(prev => prev + 1);
+    }
+  };
+
+  const handleQuickFeedback = async (isPositive: boolean) => {
+    if (!selectedQuiz) return;
+
+    const feedbackType = isPositive ? 'thumbsUp' : 'thumbsDown';
+    setFeedbackLoading(feedbackType);
+
+    try {
+      await saveQuickFeedback({
+        folderName: 'Default', // You might want to get this from context or props
+        domain: selectedQuiz.domain,
+        topic: selectedQuiz.topic,
+        standard: selectedQuiz.standard || '',
+        quizId: selectedQuiz.id,
+        thumbsUp: isPositive ? true : undefined,
+        thumbsDown: !isPositive ? true : undefined,
+      });
+      
+      // Reload feedback to update state
+      await loadQuizFeedback();
+      await loadReviewedQuizzes();
+      
+      toast({
+        description: `Feedback saved! ${isPositive ? '👍' : '👎'}`,
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to save feedback',
+      });
+    } finally {
+      setFeedbackLoading(null);
+    }
+  };
+
+  const handleToggleFeedback = () => {
+    if (existingFeedback && hasDetailedFeedback(existingFeedback)) {
+      // If detailed feedback exists, show in view mode
+      setIsViewMode(!showInlineFeedback);
+      setShowInlineFeedback(!showInlineFeedback);
+    } else {
+      // If no detailed feedback, show in edit mode
+      setIsViewMode(false);
+      setShowInlineFeedback(!showInlineFeedback);
+    }
+  };
+
+  const handleCloseFeedback = async () => {
+    setShowInlineFeedback(false);
+    setIsViewMode(false);
+    // Reload feedback data after closing (in case it was updated)
+    await loadQuizFeedback();
+    await loadReviewedQuizzes();
+  };
+
+  const hasDetailedFeedback = (feedback: any) => {
+    return feedback && (
+      feedback.standard_alignment_rating || 
+      feedback.quality_rating || 
+      feedback.pedagogy_rating || 
+      feedback.feedback_text
+    );
+  };
+
+  const handleCopyQuizId = async () => {
+    if (!selectedQuiz) return;
+    
+    try {
+      await navigator.clipboard.writeText(selectedQuiz.id);
+      toast({
+        description: "Quiz ID copied to clipboard!",
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to copy quiz ID to clipboard",
+      });
     }
   };
 
@@ -78,60 +207,98 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
               {/* Quiz Info */}
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-2">{selectedQuiz.title}</h2>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 mb-2">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-2">
                   {selectedQuiz.domain && (
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
                       {selectedQuiz.domain}
-                    </span>
+                    </Badge>
                   )}
                   {selectedQuiz.topic && (
-                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200">
                       {selectedQuiz.topic}
-                    </span>
+                    </Badge>
                   )}
                   {selectedQuiz.standard && (
-                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium">
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
                       {selectedQuiz.standard}
-                    </span>
+                    </Badge>
                   )}
-                  <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded border">
-                    {selectedQuiz.id}
-                  </span>
+                  <Badge 
+                    variant="outline" 
+                    className="font-mono cursor-pointer hover:bg-gray-50 transition-colors group" 
+                    onClick={handleCopyQuizId}
+                    title="Click to copy quiz ID"
+                  >
+                    <span className="mr-1">{selectedQuiz.id}</span>
+                    <Copy className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Badge>
                 </div>
               </div>
             </div>
             
             {/* Action Buttons */}
             <div className="flex items-center space-x-2">
-              {/* Refresh Button */}
-              <button
-                onClick={handleRefreshPreview}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 border border-gray-200 hover:border-gray-300 rounded-md transition-colors"
-                title="Refresh preview"
+              {/* Thumbs Down */}
+              <Button
+                variant={existingFeedback?.thumbs_down ? "default" : "outline"}
+                size="icon"
+                onClick={() => handleQuickFeedback(false)}
+                disabled={feedbackLoading === 'thumbsDown'}
+                className={existingFeedback?.thumbs_down 
+                  ? "bg-red-600 text-white hover:bg-red-700" 
+                  : "text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
+                }
+                title="Thumbs down"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
+                {feedbackLoading === 'thumbsDown' ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                ) : (
+                  <ThumbsDown className={`h-4 w-4 ${existingFeedback?.thumbs_down ? 'fill-current' : ''}`} />
+                )}
+              </Button>
+
+              {/* Thumbs Up */}
+              <Button
+                variant={existingFeedback?.thumbs_up ? "default" : "outline"}
+                size="icon"
+                onClick={() => handleQuickFeedback(true)}
+                disabled={feedbackLoading === 'thumbsUp'}
+                className={existingFeedback?.thumbs_up 
+                  ? "bg-green-600 text-white hover:bg-green-700" 
+                  : "text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200 hover:border-green-300"
+                }
+                title="Thumbs up"
+              >
+                {feedbackLoading === 'thumbsUp' ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                ) : (
+                  <ThumbsUp className={`h-4 w-4 ${existingFeedback?.thumbs_up ? 'fill-current' : ''}`} />
+                )}
+              </Button>
+
+              {/* Give Feedback Button */}
+              <Button onClick={handleToggleFeedback}>
+                <MessageSquare className="h-4 w-4 mr-2" />
+                {existingFeedback && hasDetailedFeedback(existingFeedback) ? 'Show Feedback' : 'Give Feedback'}
+              </Button>
 
               {/* Open in New Tab */}
-              <a 
-                href={quizUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-300 rounded-md transition-colors"
-              >
-                Open in Quizizz
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
+              <Button variant="outline" asChild>
+                <a 
+                  href={quizUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Visit Wayground
+                  <ExternalLink className="h-4 w-4 ml-2" />
+                </a>
+              </Button>
             </div>
           </div>
         </div>
 
-        {/* Quiz Preview iframe */}
-        <div className="flex-1 bg-gray-100 p-4">
+        {/* Quiz Preview iframe with Feedback Overlay */}
+        <div className="flex-1 bg-gray-100 p-4 relative">
           <div className="h-full bg-white rounded-lg shadow-sm overflow-hidden">
             <iframe
               key={iframeKey}
@@ -143,6 +310,31 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
               allow="storage-access"
             />
           </div>
+          
+          {/* Feedback Overlay */}
+          {showInlineFeedback && (
+            <div 
+              className="absolute inset-4 bg-black/50 rounded-lg flex items-center justify-center"
+              onClick={handleCloseFeedback}
+            >
+              <div 
+                className="w-full max-w-md"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <InlineFeedback
+                  folderName="Default"
+                  domain={selectedQuiz.domain}
+                  topic={selectedQuiz.topic}
+                  standard={selectedQuiz.standard || ''}
+                  quizId={selectedQuiz.id}
+                  quizTitle={selectedQuiz.title}
+                  onClose={handleCloseFeedback}
+                  existingFeedback={existingFeedback}
+                  isViewMode={isViewMode}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </>
     );
@@ -153,23 +345,8 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
       {/* Left Sidebar - Hierarchical Tree */}
       <div className="w-1/3 min-w-0 border-r border-gray-200 bg-white">
         <div className="h-full flex flex-col">
-          {/* Header with Back Button */}
-          <div className="p-4 border-b border-gray-200 bg-white">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={onBack}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back
-              </button>
-              <h1 className="text-lg font-semibold text-gray-900">
-                Quiz Library
-              </h1>
-            </div>
-          </div>
+    
+          
           
           {/* Tree View */}
           <div className="flex-1 overflow-hidden">
@@ -178,6 +355,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
                 nodes={treeNodes}
                 onQuizSelect={handleQuizSelect}
                 selectedQuizId={selectedQuiz?.id}
+                reviewedQuizzes={reviewedQuizzes}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-gray-500">
@@ -194,6 +372,10 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
       <div className="flex-1 min-w-0 flex flex-col">
         {renderQuizPreview()}
       </div>
+
+
+
+
     </div>
   );
 };

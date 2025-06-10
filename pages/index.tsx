@@ -5,8 +5,8 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Quiz Review App</title>
-        <meta name="description" content="Quiz review application for batch processing" />
+        <title>HQRL: Resources Curation</title>
+        <meta name="description" content="High Quality Resource Library for educational content curation" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <App />

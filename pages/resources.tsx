@@ -9,6 +9,7 @@ import Navigation from '../components/Navigation';
 import { QuizSummary, CSVQuizData } from '../types';
 import { uploadFile, isSupabaseConfigured } from '../utils/supabase';
 import { parseCSVToQuizSummaries } from '../utils/treeBuilder';
+import { safeGetFromLocalStorage, safeSetToLocalStorage } from '../utils/localStorage';
 
 export default function Resources() {
   const router = useRouter();
@@ -37,16 +38,10 @@ export default function Resources() {
 
   // Load quiz data from localStorage on component mount
   useEffect(() => {
-    const savedQuizzes = localStorage.getItem('quizData');
-    if (savedQuizzes) {
-      try {
-        const parsedQuizzes = JSON.parse(savedQuizzes);
-        setQuizzes(parsedQuizzes);
-      } catch (error) {
-        console.error('Error parsing saved quiz data:', error);
-        // If no valid data, redirect to home
-        router.push('/');
-      }
+    const savedQuizzes = safeGetFromLocalStorage<QuizSummary[]>('quizData', []);
+    
+    if (savedQuizzes.length > 0) {
+      setQuizzes(savedQuizzes);
     } else {
       // If no quiz data, redirect to home
       router.push('/');
@@ -78,7 +73,7 @@ export default function Resources() {
       const quizSummaries = parseCSVToQuizSummaries(quizData);
       
       // Save to localStorage and update state
-      localStorage.setItem('quizData', JSON.stringify(quizSummaries));
+      safeSetToLocalStorage('quizData', quizSummaries);
       setQuizzes(quizSummaries);
       
       // Show success notification
@@ -106,8 +101,8 @@ export default function Resources() {
   return (
     <>
       <Head>
-        <title>Quiz Resources - Quiz Review App</title>
-        <meta name="description" content="Quiz review resources and previews" />
+        <title>Resources - HQRL: Resources Curation</title>
+        <meta name="description" content="High quality educational resources and quiz previews" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
