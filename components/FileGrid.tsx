@@ -13,7 +13,8 @@ import {
   X, 
   Loader2,
   FolderOpen,
-  AlertCircle
+  AlertCircle,
+  CheckCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +35,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [editingFile, setEditingFile] = useState<string | null>(null);
@@ -97,6 +99,8 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
   const handleDeleteClick = (fileName: string, event: React.MouseEvent) => {
     event.stopPropagation();
     setConfirmDelete(fileName);
+    setError(null);
+    setSuccessMessage(null);
   };
 
   const handleConfirmDelete = async () => {
@@ -107,6 +111,8 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
       await deleteFile(confirmDelete);
       
       setFiles(files.filter(file => file.name !== confirmDelete));
+      setSuccessMessage(`File "${getDisplayName(confirmDelete)}" deleted successfully.`);
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       console.error('Error deleting file:', err);
       setError('Failed to delete file. Please try again.');
@@ -125,6 +131,8 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
     setEditingFile(fileName);
     const displayName = fileName.replace(/^\d+-/, '').replace('.csv', '');
     setEditingName(displayName);
+    setError(null);
+    setSuccessMessage(null);
   };
 
   const handleSaveEdit = async (originalFileName: string) => {
@@ -148,6 +156,8 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
       
       setEditingFile(null);
       setEditingName('');
+      setSuccessMessage(`File renamed successfully.`);
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       console.error('Error renaming file:', err);
       setError('Failed to rename file. Please try again.');
@@ -223,6 +233,17 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
           </Card>
         )}
 
+        {successMessage && (
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <p className="text-sm text-green-800">{successMessage}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Files Grid */}
         {files.length > 0 ? (
           <div className="space-y-4">
@@ -232,7 +253,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
               <Card
                 key={file.name}
                 className={cn(
-                  "cursor-pointer transition-all duration-200 hover:shadow-md",
+                  "group cursor-pointer transition-all duration-200 hover:shadow-md",
                   editingFile === file.name && "ring-2 ring-primary"
                 )}
                 onClick={() => !editingFile && handleFileClick(file.name)}
@@ -257,7 +278,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
                       )}
                     </div>
                     
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       {editingFile === file.name ? (
                         <>
                           <Button
@@ -269,6 +290,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
                               handleSaveEdit(file.name);
                             }}
                             disabled={renamingFile === file.name}
+                            title="Save changes"
                           >
                             {renamingFile === file.name ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
@@ -284,6 +306,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
                               e.stopPropagation();
                               handleCancelEdit();
                             }}
+                            title="Cancel editing"
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -295,6 +318,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
                             variant="ghost"
                             className="h-6 w-6"
                             onClick={(e) => handleEditClick(file.name, e)}
+                            title="Edit name"
                           >
                             <Edit3 className="h-3 w-3" />
                           </Button>
@@ -303,6 +327,8 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, refreshTrigger }) => 
                             variant="ghost"
                             className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
                             onClick={(e) => handleDeleteClick(file.name, e)}
+                            title="Delete file"
+                            disabled={deletingFile === file.name}
                           >
                             {deletingFile === file.name ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
