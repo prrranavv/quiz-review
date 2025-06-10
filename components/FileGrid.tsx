@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getUploadedFiles, downloadFile, deleteFile, isSupabaseConfigured } from '../utils/supabase';
+import { getUploadedFiles, downloadFile, deleteFile, renameFile, isSupabaseConfigured } from '../utils/supabase';
 
 interface FileInfo {
   name: string;
@@ -21,6 +21,9 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
   const [error, setError] = useState<string | null>(null);
   const [deletingFile, setDeletingFile] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [editingFile, setEditingFile] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState<string>('');
+  const [renamingFile, setRenamingFile] = useState<string | null>(null);
 
   const fetchFiles = async () => {
     try {
@@ -47,6 +50,8 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
   }, [refreshTrigger]);
 
   const handleFileClick = async (fileName: string) => {
+    if (editingFile === fileName) return; // Don't open file when editing
+    
     try {
       const fileData = await downloadFile(fileName);
       onFileSelect(fileName, fileData);
@@ -57,7 +62,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
   };
 
   const handleDeleteClick = (fileName: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent file selection when clicking delete
+    event.stopPropagation();
     setConfirmDelete(fileName);
   };
 
@@ -68,7 +73,6 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
       setDeletingFile(confirmDelete);
       await deleteFile(confirmDelete);
       
-      // Remove the file from the local state
       setFiles(files.filter(file => file.name !== confirmDelete));
       
       console.log(`File ${confirmDelete} deleted successfully`);
@@ -83,6 +87,58 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
 
   const handleCancelDelete = () => {
     setConfirmDelete(null);
+  };
+
+  const handleEditClick = (fileName: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setEditingFile(fileName);
+    // Remove timestamp prefix and .csv extension for editing
+    const displayName = fileName.replace(/^\d+-/, '').replace('.csv', '');
+    setEditingName(displayName);
+  };
+
+  const handleSaveEdit = async (originalFileName: string) => {
+    if (!editingName.trim()) {
+      alert('File name cannot be empty');
+      return;
+    }
+
+    const timestamp = Date.now();
+    const newFileName = `${timestamp}-${editingName.trim()}.csv`;
+
+    try {
+      setRenamingFile(originalFileName);
+      await renameFile(originalFileName, newFileName);
+      
+      // Update the file in local state
+      setFiles(files.map(file => 
+        file.name === originalFileName 
+          ? { ...file, name: newFileName }
+          : file
+      ));
+      
+      console.log(`File renamed from ${originalFileName} to ${newFileName}`);
+      setEditingFile(null);
+      setEditingName('');
+    } catch (err) {
+      console.error('Error renaming file:', err);
+      alert('Failed to rename file. Please try again.');
+    } finally {
+      setRenamingFile(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingFile(null);
+    setEditingName('');
+  };
+
+  const handleKeyPress = (event: React.KeyboardEvent, fileName: string) => {
+    if (event.key === 'Enter') {
+      handleSaveEdit(fileName);
+    } else if (event.key === 'Escape') {
+      handleCancelEdit();
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -100,6 +156,10 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
       month: 'long',
       year: 'numeric'
     });
+  };
+
+  const getDisplayName = (fileName: string) => {
+    return fileName.replace(/^\d+-/, '').replace('.csv', '');
   };
 
   if (loading) {
@@ -139,21 +199,36 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
             key={file.name}
             className="bg-white border border-gray-300 rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow duration-200 min-h-[200px] flex flex-col justify-between relative group"
           >
-            {/* Delete Button */}
-            <button
-              onClick={(e) => handleDeleteClick(file.name, e)}
-              disabled={deletingFile === file.name}
-              className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100 bg-white rounded-full shadow-sm hover:shadow-md disabled:opacity-50"
-              title="Delete file"
-            >
-              {deletingFile === file.name ? (
-                <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
-              ) : (
+            {/* Action Buttons */}
+            <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Edit Button */}
+              <button
+                onClick={(e) => handleEditClick(file.name, e)}
+                disabled={renamingFile === file.name || editingFile !== null}
+                className="p-2 text-gray-400 hover:text-blue-600 transition-colors bg-white rounded-full shadow-sm hover:shadow-md disabled:opacity-50"
+                title="Edit file name"
+              >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-              )}
-            </button>
+              </button>
+
+              {/* Delete Button */}
+              <button
+                onClick={(e) => handleDeleteClick(file.name, e)}
+                disabled={deletingFile === file.name || editingFile !== null}
+                className="p-2 text-gray-400 hover:text-red-600 transition-colors bg-white rounded-full shadow-sm hover:shadow-md disabled:opacity-50"
+                title="Delete file"
+              >
+                {deletingFile === file.name ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                )}
+              </button>
+            </div>
 
             <div onClick={() => handleFileClick(file.name)}>
               <div className="mb-4">
@@ -171,9 +246,45 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center truncate">
-                {file.name.replace('.csv', '')}
-              </h3>
+              
+              {/* File Name - Editable */}
+              {editingFile === file.name ? (
+                <div className="text-center mb-2" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onKeyDown={(e) => handleKeyPress(e, file.name)}
+                    className="text-lg font-semibold text-gray-900 text-center border-2 border-blue-500 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+                    autoFocus
+                  />
+                  <div className="flex justify-center space-x-2 mt-2">
+                    <button
+                      onClick={() => handleSaveEdit(file.name)}
+                      disabled={renamingFile === file.name}
+                      className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {renamingFile === file.name ? (
+                        <div className="animate-spin h-3 w-3 border border-white border-t-transparent rounded-full"></div>
+                      ) : (
+                        'Save'
+                      )}
+                    </button>
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={renamingFile === file.name}
+                      className="px-3 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <h3 className="text-lg font-semibold text-gray-900 mb-2 text-center truncate">
+                  {getDisplayName(file.name)}
+                </h3>
+              )}
+              
               <div className="text-center text-sm text-gray-500 space-y-1">
                 <p>{formatFileSize(file.metadata?.size || 0)}</p>
                 <p>{file.metadata?.mimetype || 'CSV file'}</p>
@@ -246,7 +357,7 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
               </div>
             </div>
             <p className="text-gray-700 mb-6">
-              Are you sure you want to delete <strong className="font-medium">{confirmDelete}</strong>?
+              Are you sure you want to delete <strong className="font-medium">{getDisplayName(confirmDelete)}</strong>?
             </p>
             <div className="flex space-x-3">
               <button

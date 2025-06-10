@@ -98,4 +98,40 @@ export const deleteFile = async (fileName: string) => {
   }
   
   return data
+}
+
+// Rename file (copy and delete original)
+export const renameFile = async (oldFileName: string, newFileName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    // First, copy the file to the new name
+    const { data: copyData, error: copyError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .copy(oldFileName, newFileName)
+    
+    if (copyError) {
+      throw new Error(`Copy failed: ${copyError.message}`)
+    }
+    
+    // Then delete the original file
+    const { error: deleteError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .remove([oldFileName])
+    
+    if (deleteError) {
+      // If delete fails, try to clean up the copied file
+      await supabase.storage.from(STORAGE_BUCKET).remove([newFileName])
+      throw new Error(`Delete original failed: ${deleteError.message}`)
+    }
+    
+    return copyData
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Rename failed: Unknown error occurred')
+  }
 } 
