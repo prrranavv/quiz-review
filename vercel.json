@@ -1,7 +1,9 @@
 {
-  "framework": "vite",
+  "framework": "nextjs",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "devCommand": "npm run dev",
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
