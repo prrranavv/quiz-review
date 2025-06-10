@@ -1,6 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { QuizSummary, CSVQuizData } from '../types';
-import { fetchQuizData } from '../utils/quizApi';
 import CSVUpload from './CSVUpload';
 import QuizViewer from './QuizViewer';
 import Modal from './Modal';
@@ -14,58 +13,20 @@ function App() {
     setLoading(true);
     setIsUploadModalOpen(false); // Close modal when processing starts
     
-    // Initialize quiz summaries with metadata from CSV
-    const initialQuizzes: QuizSummary[] = quizData.map(quiz => ({
+    // Create quiz summaries from CSV data (no API calls needed for iframe approach)
+    const quizSummaries: QuizSummary[] = quizData.map(quiz => ({
       id: quiz.id,
-      title: `Loading quiz ${quiz.id.substring(0, 8)}...`,
-      questionCount: 0,
-      status: 'loading',
+      title: `Quiz ${quiz.id.substring(0, 8)}...`,
+      questionCount: 0, // Not needed for iframe approach
+      status: 'loaded', // Always loaded since we're just showing iframe
       standard: quiz.standard,
       subject: quiz.subject,
       grade: quiz.grade,
       topic: quiz.topic,
     }));
     
-    setQuizzes(initialQuizzes);
+    setQuizzes(quizSummaries);
     setLoading(false);
-    
-    // Load each quiz data
-    for (let i = 0; i < quizData.length; i++) {
-      const quizInfo = quizData[i];
-      try {
-        const data = await fetchQuizData(quizInfo.id);
-        const quiz = data.data.quiz;
-        
-        setQuizzes(prev => prev.map(q => 
-          q.id === quizInfo.id 
-            ? {
-                ...q,
-                title: quiz.info.name || `Quiz ${quizInfo.id.substring(0, 8)}`,
-                image: quiz.info.image,
-                questionCount: quiz.info.questions.length,
-                status: 'loaded' as const,
-                data
-              }
-            : q
-        ));
-      } catch (err) {
-        console.error(`Failed to load quiz ${quizInfo.id}:`, err);
-        setQuizzes(prev => prev.map(q => 
-          q.id === quizInfo.id 
-            ? {
-                ...q,
-                status: 'error' as const,
-                error: err instanceof Error ? err.message : 'Failed to load'
-              }
-            : q
-        ));
-      }
-      
-      // Small delay between requests to avoid overwhelming the API
-      if (i < quizData.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    }
   }, []);
 
   const handleNewUpload = () => {
@@ -92,8 +53,8 @@ function App() {
           {/* Title and Description */}
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Quiz Review App</h1>
           <p className="text-gray-600 mb-8 leading-relaxed">
-            Upload a CSV file with Quizizz quiz IDs to review multiple quizzes at once. 
-            Perfect for content moderation and bulk quiz analysis.
+            Upload a CSV file with Quizizz quiz IDs to preview multiple quizzes at once. 
+            Perfect for content review and bulk quiz browsing.
           </p>
 
           {/* Upload Button */}
@@ -127,13 +88,13 @@ function App() {
                 <svg className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                Math equations and rich content support
+                Live quiz preview with iframe embedding
               </li>
               <li className="flex items-start">
                 <svg className="h-5 w-5 text-green-500 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
-                Real-time loading progress and error handling
+                Quick access to admin and student views
               </li>
             </ul>
           </div>
@@ -154,7 +115,7 @@ function App() {
               </svg>
             </div>
             <p className="text-gray-600 mb-6">
-              Select a CSV file containing Quizizz quiz IDs for bulk review
+              Select a CSV file containing Quizizz quiz IDs for bulk preview
             </p>
           </div>
 
