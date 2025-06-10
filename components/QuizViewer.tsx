@@ -11,7 +11,6 @@ interface QuizViewerProps {
 const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<QuizSummary | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
 
   // Build tree structure from quizzes
@@ -26,24 +25,21 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
     setSelectedQuiz(quiz);
   };
 
-  const handleLoginToQuizizz = () => {
-    const loginWindow = window.open('https://quizizz.com/admin', 'quizizz-login', 'width=600,height=700,scrollbars=yes');
-    
-    // Check if login window is closed (user returned)
-    const checkClosed = setInterval(() => {
-      if (loginWindow?.closed) {
-        clearInterval(checkClosed);
-        // Refresh iframe after a short delay to allow cookies to sync
-        setTimeout(() => {
-          setIframeKey(prev => prev + 1);
-          setIsLoggedIn(true);
-        }, 1000);
-      }
-    }, 500);
-  };
-
   const handleRefreshPreview = () => {
-    setIframeKey(prev => prev + 1);
+    // Force a hard refresh by temporarily changing the src to about:blank
+    // then back to the quiz URL, which will clear any session/login state
+    const iframe = document.querySelector('iframe[title*="Preview of"]') as HTMLIFrameElement;
+    if (iframe) {
+      const originalSrc = iframe.src;
+      iframe.src = 'about:blank';
+      setTimeout(() => {
+        iframe.src = originalSrc;
+        setIframeKey(prev => prev + 1);
+      }, 100);
+    } else {
+      // Fallback to just incrementing the key
+      setIframeKey(prev => prev + 1);
+    }
   };
 
   const renderQuizPreview = () => {
@@ -98,28 +94,15 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
                       {selectedQuiz.standard}
                     </span>
                   )}
-                </div>
-                <div className="font-mono text-xs bg-gray-100 px-3 py-2 rounded border">
-                  Quiz ID: {selectedQuiz.id}
+                  <span className="font-mono text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded border">
+                    {selectedQuiz.id}
+                  </span>
                 </div>
               </div>
             </div>
             
             {/* Action Buttons */}
             <div className="flex items-center space-x-2">
-              {/* Login Status & Login Button */}
-              {isLoggedIn === false && (
-                <button
-                  onClick={handleLoginToQuizizz}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 border border-purple-600 rounded-md transition-colors"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  Login to Quizizz
-                </button>
-              )}
-              
               {/* Refresh Button */}
               <button
                 onClick={handleRefreshPreview}
@@ -149,35 +132,6 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
 
         {/* Quiz Preview iframe */}
         <div className="flex-1 bg-gray-100 p-4">
-          {/* Status Messages */}
-          {isLoggedIn === false && (
-            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <div className="flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <div className="text-sm">
-                  <span className="font-medium text-yellow-800">Not logged in to Quizizz.</span>
-                  <span className="text-yellow-700"> Click "Login to Quizizz" above, then refresh to see full content.</span>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {isLoggedIn === true && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div className="text-sm">
-                  <span className="font-medium text-green-800">Login detected!</span>
-                  <span className="text-green-700"> Preview should now show your authenticated view. Use refresh button if needed.</span>
-                </div>
-              </div>
-            </div>
-          )}
-          
           <div className="h-full bg-white rounded-lg shadow-sm overflow-hidden">
             <iframe
               key={iframeKey}
@@ -187,12 +141,6 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation"
               referrerPolicy="strict-origin-when-cross-origin"
               allow="storage-access"
-              onLoad={() => {
-                // Simple detection: if we can't detect login state, assume logged out initially
-                if (isLoggedIn === null) {
-                  setIsLoggedIn(false);
-                }
-              }}
             />
           </div>
         </div>
@@ -205,12 +153,9 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
       {/* Left Sidebar - Hierarchical Tree */}
       <div className="w-1/3 min-w-0 border-r border-gray-200 bg-white">
         <div className="h-full flex flex-col">
-          {/* Header */}
+          {/* Header with Back Button */}
           <div className="p-4 border-b border-gray-200 bg-white">
-            <div className="flex items-center justify-between">
-              <h1 className="text-lg font-semibold text-gray-900">
-                Quiz Resources
-              </h1>
+            <div className="flex items-center space-x-3">
               <button
                 onClick={onBack}
                 className="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 border border-gray-200 rounded-md hover:bg-gray-50 transition-colors"
@@ -220,6 +165,9 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
                 </svg>
                 Back
               </button>
+              <h1 className="text-lg font-semibold text-gray-900">
+                Quiz Library
+              </h1>
             </div>
           </div>
           

@@ -18,6 +18,8 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading, onEr
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, '').toLowerCase());
     const quizData: CSVQuizData[] = [];
     
+    console.log('CSV Headers:', headers);
+    
     // Find column indices for new hierarchical format
     const domainColumn = headers.findIndex(h => 
       h.includes('domain') || h.includes('subject area')
@@ -53,15 +55,48 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading, onEr
       h.includes('grade') || h.includes('level')
     );
     
+    console.log('Column indices:', {
+      domain: domainColumn,
+      topic: topicColumn,
+      standard: standardColumn,
+      description: descriptionColumn,
+      title: titleColumn,
+      numQuestions: numQuestionsColumn,
+      quizId: quizIdColumns
+    });
+    
     // Process data rows
     for (let i = 1; i < lines.length; i++) {
-      const cells = lines[i].split(',').map(cell => cell.trim().replace(/"/g, ''));
+      const line = lines[i];
+      if (!line.trim()) continue;
+      
+      // Split by comma but handle quoted fields
+      const cells: string[] = [];
+      let currentCell = '';
+      let inQuotes = false;
+      
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          cells.push(currentCell.trim());
+          currentCell = '';
+        } else {
+          currentCell += char;
+        }
+      }
+      cells.push(currentCell.trim()); // Add the last cell
+      
+      // Remove quotes from cells
+      const cleanedCells = cells.map(cell => cell.replace(/"/g, '').trim());
+      
       let quizId: string | null = null;
       
       // Try to find quiz ID in designated columns first
       for (const colIndex of quizIdColumns) {
-        if (colIndex < cells.length) {
-          const cell = cells[colIndex];
+        if (colIndex < cleanedCells.length) {
+          const cell = cleanedCells[colIndex];
           if (cell && /^[a-fA-F0-9]{20,}$/.test(cell)) {
             quizId = cell;
             break;
@@ -75,9 +110,9 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading, onEr
         }
       }
       
-      // If not found, search all columns
+      // If not found, search all cells
       if (!quizId) {
-        for (const cell of cells) {
+        for (const cell of cleanedCells) {
           if (cell && /^[a-fA-F0-9]{20,}$/.test(cell)) {
             quizId = cell;
             break;
@@ -92,22 +127,32 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading, onEr
       }
       
       if (quizId) {
-        const questionCount = numQuestionsColumn >= 0 && cells[numQuestionsColumn] 
-          ? parseInt(cells[numQuestionsColumn]) || 0 
+        const questionCount = numQuestionsColumn >= 0 && cleanedCells[numQuestionsColumn] 
+          ? parseInt(cleanedCells[numQuestionsColumn]) || 0 
           : 0;
+          
+        const domain = domainColumn >= 0 ? cleanedCells[domainColumn] || undefined : undefined;
+        const topic = topicColumn >= 0 ? cleanedCells[topicColumn] || undefined : undefined;
+        const standard = standardColumn >= 0 ? cleanedCells[standardColumn] || undefined : undefined;
+        const description = descriptionColumn >= 0 ? cleanedCells[descriptionColumn] || undefined : undefined;
+        const title = titleColumn >= 0 ? cleanedCells[titleColumn] || undefined : undefined;
+        const subject = subjectColumn >= 0 ? cleanedCells[subjectColumn] || undefined : undefined;
+        const grade = gradeColumn >= 0 ? cleanedCells[gradeColumn] || undefined : undefined;
+        
+        console.log(`Row ${i}: QuizID=${quizId}, Title="${title}", Standard="${standard}"`);
           
         quizData.push({
           id: quizId,
           // New hierarchical fields
-          domain: domainColumn >= 0 ? cells[domainColumn] || undefined : undefined,
-          topic: topicColumn >= 0 ? cells[topicColumn] || undefined : undefined,
-          standard: standardColumn >= 0 ? cells[standardColumn] || undefined : undefined,
-          description: descriptionColumn >= 0 ? cells[descriptionColumn] || undefined : undefined,
-          title: titleColumn >= 0 ? cells[titleColumn] || undefined : undefined,
+          domain: domain,
+          topic: topic,
+          standard: standard,
+          description: description,
+          title: title,
           questionCount: questionCount,
           // Legacy fields for backward compatibility
-          subject: subjectColumn >= 0 ? cells[subjectColumn] || undefined : undefined,
-          grade: gradeColumn >= 0 ? cells[gradeColumn] || undefined : undefined,
+          subject: subject,
+          grade: grade,
         });
       }
     }
@@ -116,6 +161,8 @@ const CSVUpload: React.FC<CSVUploadProps> = ({ onQuizIdsExtracted, loading, onEr
     const uniqueQuizData = quizData.filter((quiz, index, self) => 
       index === self.findIndex(q => q.id === quiz.id)
     );
+    
+    console.log(`Parsed ${uniqueQuizData.length} unique quizzes:`, uniqueQuizData);
     
     return uniqueQuizData;
   };

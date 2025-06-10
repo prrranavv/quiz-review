@@ -19,6 +19,8 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletingFile, setDeletingFile] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const fetchFiles = async () => {
     try {
@@ -52,6 +54,35 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
       console.error('Error downloading file:', err);
       alert('Failed to download file. Please try again.');
     }
+  };
+
+  const handleDeleteClick = (fileName: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent file selection when clicking delete
+    setConfirmDelete(fileName);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+
+    try {
+      setDeletingFile(confirmDelete);
+      await deleteFile(confirmDelete);
+      
+      // Remove the file from the local state
+      setFiles(files.filter(file => file.name !== confirmDelete));
+      
+      console.log(`File ${confirmDelete} deleted successfully`);
+    } catch (err) {
+      console.error('Error deleting file:', err);
+      alert('Failed to delete file. Please try again.');
+    } finally {
+      setDeletingFile(null);
+      setConfirmDelete(null);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setConfirmDelete(null);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -106,10 +137,25 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
         {files.map((file) => (
           <div
             key={file.name}
-            onClick={() => handleFileClick(file.name)}
-            className="bg-white border border-gray-300 rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow duration-200 min-h-[200px] flex flex-col justify-between"
+            className="bg-white border border-gray-300 rounded-lg p-6 cursor-pointer hover:shadow-md transition-shadow duration-200 min-h-[200px] flex flex-col justify-between relative group"
           >
-            <div>
+            {/* Delete Button */}
+            <button
+              onClick={(e) => handleDeleteClick(file.name, e)}
+              disabled={deletingFile === file.name}
+              className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100 bg-white rounded-full shadow-sm hover:shadow-md disabled:opacity-50"
+              title="Delete file"
+            >
+              {deletingFile === file.name ? (
+                <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              )}
+            </button>
+
+            <div onClick={() => handleFileClick(file.name)}>
               <div className="mb-4">
                 <svg 
                   className="w-12 h-12 text-gray-400 mx-auto" 
@@ -181,6 +227,42 @@ const FileGrid: React.FC<FileGridProps> = ({ onFileSelect, onUploadClick, refres
           </svg>
           <h3 className="text-xl font-medium text-gray-900 mb-2">No files uploaded yet</h3>
           <p className="text-gray-600 mb-6">Upload your first CSV file to get started with quiz review.</p>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0 w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900">Delete File</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone.</p>
+              </div>
+            </div>
+            <p className="text-gray-700 mb-6">
+              Are you sure you want to delete <strong className="font-medium">{confirmDelete}</strong>?
+            </p>
+            <div className="flex space-x-3">
+              <button
+                onClick={handleCancelDelete}
+                className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

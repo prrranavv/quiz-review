@@ -102,13 +102,6 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
             <div className={`text-sm leading-5 ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
               {node.name}
             </div>
-            {node.type === 'quiz' && (
-              <div className="text-xs text-gray-500 mt-1">
-                <div className="font-mono text-xs break-all bg-gray-50 px-2 py-1 rounded">
-                  {node.quizId}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -132,10 +125,7 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
 
 const TreeView: React.FC<TreeViewProps> = ({ nodes, onQuizSelect, selectedQuizId }) => {
   return (
-    <div className="h-full overflow-y-auto bg-white border-r border-gray-200">
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Quiz Library</h3>
-      </div>
+    <div className="h-full overflow-y-auto bg-white">
       <div className="py-2">
         {nodes.map((node) => (
           <TreeNodeComponent
