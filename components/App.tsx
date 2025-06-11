@@ -127,13 +127,13 @@ function App() {
       h.includes('standard') || h.includes('std')
     );
     const descriptionColumn = headers.findIndex(h => 
-      h.includes('description') || h.includes('desc')
+      h === 'description' || h.includes('description') || h.includes('desc')
     );
     const titleColumn = headers.findIndex(h => 
       h.includes('quiz title') || h.includes('title') || h.includes('name')
     );
     const numQuestionsColumn = headers.findIndex(h => 
-      h.includes('num questions') || h.includes('question count') || h.includes('questions')
+      h === 'num questions' || h.includes('num questions') || h.includes('question count') || h.includes('questions')
     );
     
     // Find quiz ID columns

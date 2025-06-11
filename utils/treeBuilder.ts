@@ -72,7 +72,8 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
         name: standard,
         type: 'standard',
         children: [],
-        isExpanded: false
+        isExpanded: false,
+        description: quiz.description
       };
       
       if (parentForStandard) {

@@ -23,6 +23,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
   const [existingFeedback, setExistingFeedback] = useState<any>(null);
   const [reviewedQuizzes, setReviewedQuizzes] = useState<Set<string>>(new Set());
   const [isViewMode, setIsViewMode] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const { toast } = useToast();
 
   // Build tree structure from quizzes and load feedback data
@@ -71,6 +72,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
 
   const handleQuizSelect = (quiz: QuizSummary) => {
     setSelectedQuiz(quiz);
+    setIsDescriptionExpanded(false); // Reset description expansion when selecting a new quiz
   };
 
   const handleRefreshPreview = () => {
@@ -201,13 +203,20 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
     return (
       <>
         {/* Quiz Preview Header */}
-        <div className="p-4 bg-white border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              {/* Quiz Info */}
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 mb-2">{selectedQuiz.title}</h2>
-                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mb-2">
+        <div className="bg-white border-b border-gray-200">
+          <div className="p-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0 pr-4">
+                {/* Quiz Info */}
+                <div className="flex items-center gap-2 mb-2">
+                  <h2 className="text-lg font-semibold text-gray-900">{selectedQuiz.title}</h2>
+                  {selectedQuiz.questionCount > 0 && (
+                    <span className="text-sm text-gray-500 font-medium">
+                      {selectedQuiz.questionCount} Qs
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   {selectedQuiz.domain && (
                     <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
                       {selectedQuiz.domain}
@@ -234,67 +243,93 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
                   </Badge>
                 </div>
               </div>
-            </div>
-            
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-2">
-              {/* Thumbs Down */}
-              <Button
-                variant={existingFeedback?.thumbs_down ? "default" : "outline"}
-                size="icon"
-                onClick={() => handleQuickFeedback(false)}
-                disabled={feedbackLoading === 'thumbsDown'}
-                className={existingFeedback?.thumbs_down 
-                  ? "bg-red-600 text-white hover:bg-red-700" 
-                  : "text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
-                }
-                title="Thumbs down"
-              >
-                {feedbackLoading === 'thumbsDown' ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                ) : (
-                  <ThumbsDown className={`h-4 w-4 ${existingFeedback?.thumbs_down ? 'fill-current' : ''}`} />
-                )}
-              </Button>
-
-              {/* Thumbs Up */}
-              <Button
-                variant={existingFeedback?.thumbs_up ? "default" : "outline"}
-                size="icon"
-                onClick={() => handleQuickFeedback(true)}
-                disabled={feedbackLoading === 'thumbsUp'}
-                className={existingFeedback?.thumbs_up 
-                  ? "bg-green-600 text-white hover:bg-green-700" 
-                  : "text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200 hover:border-green-300"
-                }
-                title="Thumbs up"
-              >
-                {feedbackLoading === 'thumbsUp' ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                ) : (
-                  <ThumbsUp className={`h-4 w-4 ${existingFeedback?.thumbs_up ? 'fill-current' : ''}`} />
-                )}
-              </Button>
-
-              {/* Give Feedback Button */}
-              <Button onClick={handleToggleFeedback}>
-                <MessageSquare className="h-4 w-4 mr-2" />
-                {existingFeedback && hasDetailedFeedback(existingFeedback) ? 'Show Feedback' : 'Give Feedback'}
-              </Button>
-
-              {/* Open in New Tab */}
-              <Button variant="outline" asChild>
-                <a 
-                  href={quizUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              
+              {/* Action Buttons - Fixed Position */}
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                {/* Thumbs Down */}
+                <Button
+                  variant={existingFeedback?.thumbs_down ? "default" : "outline"}
+                  size="icon"
+                  onClick={() => handleQuickFeedback(false)}
+                  disabled={feedbackLoading === 'thumbsDown'}
+                  className={existingFeedback?.thumbs_down 
+                    ? "bg-red-600 text-white hover:bg-red-700" 
+                    : "text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
+                  }
+                  title="Thumbs down"
                 >
-                  Visit Wayground
-                  <ExternalLink className="h-4 w-4 ml-2" />
-                </a>
-              </Button>
+                  {feedbackLoading === 'thumbsDown' ? (
+                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                  ) : (
+                    <ThumbsDown className={`h-4 w-4 ${existingFeedback?.thumbs_down ? 'fill-current' : ''}`} />
+                  )}
+                </Button>
+
+                {/* Thumbs Up */}
+                <Button
+                  variant={existingFeedback?.thumbs_up ? "default" : "outline"}
+                  size="icon"
+                  onClick={() => handleQuickFeedback(true)}
+                  disabled={feedbackLoading === 'thumbsUp'}
+                  className={existingFeedback?.thumbs_up 
+                    ? "bg-green-600 text-white hover:bg-green-700" 
+                    : "text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200 hover:border-green-300"
+                  }
+                  title="Thumbs up"
+                >
+                  {feedbackLoading === 'thumbsUp' ? (
+                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                  ) : (
+                    <ThumbsUp className={`h-4 w-4 ${existingFeedback?.thumbs_up ? 'fill-current' : ''}`} />
+                  )}
+                </Button>
+
+                {/* Give Feedback Button */}
+                <Button onClick={handleToggleFeedback}>
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  {existingFeedback && hasDetailedFeedback(existingFeedback) ? 'Show Feedback' : 'Give Feedback'}
+                </Button>
+
+                {/* Open in New Tab */}
+                <Button variant="outline" asChild>
+                  <a 
+                    href={quizUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Visit Wayground
+                    <ExternalLink className="h-4 w-4 ml-2" />
+                  </a>
+                </Button>
+              </div>
             </div>
           </div>
+          
+          {/* Separate Description Container - Full Width */}
+          {selectedQuiz.description && (
+            <div className="px-4 pb-4">
+              <div className="text-sm text-gray-600 italic leading-relaxed">
+                {selectedQuiz.description.length <= 120 ? (
+                  selectedQuiz.description
+                ) : (
+                  <>
+                    {isDescriptionExpanded 
+                      ? selectedQuiz.description 
+                      : `${selectedQuiz.description.substring(0, 120)}...`
+                    }
+                    {selectedQuiz.description.length > 120 && (
+                      <button
+                        onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                        className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline font-medium transition-colors"
+                      >
+                        {isDescriptionExpanded ? 'show less' : 'show more'}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Quiz Preview iframe with Feedback Overlay */}

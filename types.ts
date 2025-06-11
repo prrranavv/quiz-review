@@ -88,6 +88,7 @@ export interface TreeNode {
   quizId?: string;
   isExpanded?: boolean;
   quiz?: QuizSummary;
+  description?: string;
 }
 
 // Grouped quizzes by standard (legacy)

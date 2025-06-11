@@ -150,14 +150,14 @@ export default function InlineFeedback({
               <StarRating
                 rating={qualityRating}
                 onRatingChange={setQualityRating}
-                label="Standards alignment"
+                label="Quality"
                 disabled={isSubmitting || (isViewMode && !isEditing)}
               />
               
               <StarRating
                 rating={pedagogyRating}
                 onRatingChange={setPedagogyRating}
-                label="Standards alignment"
+                label="Pedagogy"
                 disabled={isSubmitting || (isViewMode && !isEditing)}
               />
             </div>
@@ -169,7 +169,7 @@ export default function InlineFeedback({
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
                 disabled={isSubmitting || (isViewMode && !isEditing)}
-                placeholder="Eiusmod aliqua id fugiat magna pariatur."
+                placeholder="What do you think about this resource? Is it a 10 ⭐ resource for this standard/curriculum chapter?"
                 className="resize-none"
                 readOnly={isViewMode && !isEditing}
               />

@@ -111,7 +111,18 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <div className={`text-sm leading-5 ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
-                {node.name}
+                {node.type === 'quiz' ? (
+                  <div className="flex items-center gap-2">
+                    <span>{node.name}</span>
+                    {node.quiz?.questionCount && node.quiz.questionCount > 0 && (
+                      <span className="text-xs text-gray-500 font-medium">
+                        {node.quiz.questionCount} Qs
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  node.name
+                )}
               </div>
               {node.type === 'quiz' && node.quizId && reviewedQuizzes?.has(node.quizId) && (
                 <div className="flex items-center text-green-600 ml-2">
