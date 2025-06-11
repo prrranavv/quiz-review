@@ -143,21 +143,21 @@ export default function InlineFeedback({
               <StarRating
                 rating={standardAlignmentRating}
                 onRatingChange={setStandardAlignmentRating}
-                label="Standards alignment"
+                label="Standard Alignment"
                 disabled={isSubmitting || (isViewMode && !isEditing)}
               />
               
               <StarRating
                 rating={qualityRating}
                 onRatingChange={setQualityRating}
-                label="Quality"
+                label="Question Clarity"
                 disabled={isSubmitting || (isViewMode && !isEditing)}
               />
               
               <StarRating
                 rating={pedagogyRating}
                 onRatingChange={setPedagogyRating}
-                label="Pedagogy"
+                label="Question Framing"
                 disabled={isSubmitting || (isViewMode && !isEditing)}
               />
             </div>

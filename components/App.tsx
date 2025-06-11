@@ -36,12 +36,13 @@ function App() {
     setNotification(prev => ({ ...prev, isVisible: false }));
   };
 
-  const navigateToResources = (quizData: CSVQuizData[]) => {
+  const navigateToResources = (quizData: CSVQuizData[], fileName: string) => {
     // Create quiz summaries from CSV data using the new utility
     const quizSummaries = parseCSVToQuizSummaries(quizData);
     
     // Save to localStorage and navigate
     safeSetToLocalStorage('quizData', quizSummaries);
+    safeSetToLocalStorage('fileName', fileName);
     router.push('/resources');
   };
 
@@ -75,7 +76,7 @@ function App() {
       showNotification(message, uploadSuccess ? 'success' : 'warning');
       
       // Navigate to resources page
-      navigateToResources(quizData);
+      navigateToResources(quizData, file.name);
       
     } catch (error) {
       console.error('Error processing file:', error);
@@ -98,7 +99,7 @@ function App() {
       showNotification(`Loaded ${quizData.length} quizzes from ${fileName}`, 'success');
       
       // Navigate to resources page
-      navigateToResources(quizData);
+      navigateToResources(quizData, fileName);
       
     } catch (error) {
       console.error('Error processing file:', error);

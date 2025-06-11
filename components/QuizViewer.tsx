@@ -12,9 +12,10 @@ import { ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Copy } from 'lucide-
 interface QuizViewerProps {
   quizzes: QuizSummary[];
   onBack: () => void;
+  folderName: string;
 }
 
-const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
+const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<QuizSummary | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
@@ -39,7 +40,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
   const loadReviewedQuizzes = async () => {
     try {
       const quizIds = quizzes.map(q => q.id);
-      const feedbackData = await getFeedbackForQuizzes('Default', quizIds);
+      const feedbackData = await getFeedbackForQuizzes(folderName, quizIds);
       const reviewed = new Set(feedbackData.map(f => f.quiz_id));
       setReviewedQuizzes(reviewed);
     } catch (error) {
@@ -61,7 +62,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
     if (!selectedQuiz) return;
     
     try {
-      const feedback = await getSpecificFeedback('Default', selectedQuiz.standard || '', selectedQuiz.id);
+      const feedback = await getSpecificFeedback(folderName, selectedQuiz.standard || '', selectedQuiz.id);
       setExistingFeedback(feedback);
       setIsViewMode(false);
     } catch (error) {
@@ -100,7 +101,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
 
     try {
       await saveQuickFeedback({
-        folderName: 'Default', // You might want to get this from context or props
+        folderName: folderName, // You might want to get this from context or props
         domain: selectedQuiz.domain,
         topic: selectedQuiz.topic,
         standard: selectedQuiz.standard || '',
@@ -357,7 +358,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack }) => {
                 onClick={(e) => e.stopPropagation()}
               >
                 <InlineFeedback
-                  folderName="Default"
+                  folderName={folderName}
                   domain={selectedQuiz.domain}
                   topic={selectedQuiz.topic}
                   standard={selectedQuiz.standard || ''}

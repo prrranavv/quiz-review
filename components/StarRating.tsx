@@ -31,10 +31,10 @@ export default function StarRating({ rating, onRatingChange, label, disabled = f
   };
 
   return (
-    <div className="space-y-2">
+    <div className="flex items-center justify-between">
       <Label className="text-sm font-medium">{label}</Label>
       <div className="flex space-x-1">
-        {[1, 2, 3, 4, 5].map((star) => {
+        {[1, 2, 3].map((star) => {
           const isFilled = star <= (hoverRating || rating);
           return (
             <button

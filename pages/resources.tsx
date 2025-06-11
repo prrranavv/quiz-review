@@ -14,6 +14,7 @@ import { safeGetFromLocalStorage, safeSetToLocalStorage } from '../utils/localSt
 export default function Resources() {
   const router = useRouter();
   const [quizzes, setQuizzes] = useState<QuizSummary[]>([]);
+  const [fileName, setFileName] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   
@@ -39,9 +40,11 @@ export default function Resources() {
   // Load quiz data from localStorage on component mount
   useEffect(() => {
     const savedQuizzes = safeGetFromLocalStorage<QuizSummary[]>('quizData', []);
+    const savedFileName = safeGetFromLocalStorage<string>('fileName', 'Default');
     
     if (savedQuizzes.length > 0) {
       setQuizzes(savedQuizzes);
+      setFileName(savedFileName);
     } else {
       // If no quiz data, redirect to home
       router.push('/');
@@ -74,7 +77,9 @@ export default function Resources() {
       
       // Save to localStorage and update state
       safeSetToLocalStorage('quizData', quizSummaries);
+      safeSetToLocalStorage('fileName', file.name);
       setQuizzes(quizSummaries);
+      setFileName(file.name);
       
       // Show success notification
       const message = uploadSuccess 
@@ -108,7 +113,7 @@ export default function Resources() {
 
       <Navigation />
 
-      <QuizViewer quizzes={quizzes} onBack={handleBackToHome} />
+      <QuizViewer quizzes={quizzes} onBack={handleBackToHome} folderName={fileName} />
       
       {/* Upload Modal */}
       <Modal
