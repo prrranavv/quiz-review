@@ -101,9 +101,9 @@ export default function Resources() {
   return (
     <>
       <Head>
-        <title>Resources - HQRL: Resources Curation</title>
+        <title>HQRL Resources</title>
         <meta name="description" content="High quality educational resources and quiz previews" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/books.png" />
       </Head>
 
       <Navigation />

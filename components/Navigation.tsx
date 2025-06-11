@@ -1,7 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { BookOpen } from 'lucide-react';
+import Image from 'next/image';
 
 const Navigation: React.FC = () => {
   return (
@@ -11,12 +10,15 @@ const Navigation: React.FC = () => {
           <div className="flex items-center">
             {/* Logo */}
             <Link href="/" className="flex-shrink-0 flex items-center">
-              <Avatar className="h-8 w-8 mr-3">
-                <AvatarFallback className="bg-primary text-primary-foreground">
-                  <BookOpen className="h-4 w-4" />
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-xl font-bold text-foreground">HQRL: Resources Curation</span>
+              <div className="h-8 w-8 mr-3 relative">
+                <Image
+                  src="/books.png"
+                  alt="HQRL Logo"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <span className="text-xl font-bold text-foreground">HQRL Resources</span>
             </Link>
           </div>
         </div>

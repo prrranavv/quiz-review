@@ -5,9 +5,9 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>HQRL: Resources Curation</title>
+        <title>HQRL Resources</title>
         <meta name="description" content="High Quality Resource Library for educational content curation" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/books.png" />
       </Head>
       <App />
     </>
