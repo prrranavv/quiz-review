@@ -304,4 +304,29 @@ export const getFeedbackForQuizzes = async (folderName: string, quizIds: string[
     }
     throw new Error('Failed to fetch feedback: Unknown error occurred')
   }
+}
+
+// Get all feedback data for analytics
+export const getAllFeedback = async () => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (error) {
+      throw new Error(`Failed to fetch all feedback: ${error.message}`)
+    }
+    
+    return data || []
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to fetch all feedback: Unknown error occurred')
+  }
 } 

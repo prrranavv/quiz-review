@@ -9,6 +9,7 @@ import Navigation from './Navigation';
 import { uploadFile, isSupabaseConfigured } from '../utils/supabase';
 import { parseCSVToQuizSummaries } from '../utils/treeBuilder';
 import { safeSetToLocalStorage } from '../utils/localStorage';
+import { slugify } from '../utils/slug';
 
 function App() {
   const router = useRouter();
@@ -37,13 +38,14 @@ function App() {
   };
 
   const navigateToResources = (quizData: CSVQuizData[], fileName: string) => {
+    const slug = slugify(fileName);
     // Create quiz summaries from CSV data using the new utility
     const quizSummaries = parseCSVToQuizSummaries(quizData);
     
     // Save to localStorage and navigate
-    safeSetToLocalStorage('quizData', quizSummaries);
-    safeSetToLocalStorage('fileName', fileName);
-    router.push('/resources');
+    safeSetToLocalStorage(`quizData:${slug}`, quizSummaries);
+    safeSetToLocalStorage(`fileName:${slug}`, fileName);
+    router.push(`/${slug}/resources`);
   };
 
   const handleQuizIdsExtracted = useCallback(async (quizData: CSVQuizData[], file: File) => {

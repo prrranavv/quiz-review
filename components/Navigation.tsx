@@ -21,6 +21,14 @@ const Navigation: React.FC = () => {
               <span className="text-xl font-bold text-foreground">HQRL Resources</span>
             </Link>
           </div>
+          <div className="flex items-center space-x-4">
+            <Link 
+              href="/analytics" 
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+            >
+              Analytics
+            </Link>
+          </div>
         </div>
       </div>
     </nav>
