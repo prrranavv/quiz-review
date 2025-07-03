@@ -18,20 +18,18 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  LineChart,
-  Line,
-  Legend,
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
   ResponsiveContainer,
-  Tooltip
+  Tooltip,
+  Legend
 } from 'recharts';
 import { DateRange } from 'react-day-picker';
 import { isWithinInterval, parseISO } from 'date-fns';
-import { CalendarDays, Filter, TrendingUp, Download, MessageSquare, BarChart3, FileText } from 'lucide-react';
+import { CalendarDays, Filter, TrendingUp, Download, MessageSquare, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface FeedbackData {
   id: string;
@@ -64,6 +62,8 @@ const Analytics: React.FC = () => {
   const [selectedFolder, setSelectedFolder] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [folders, setFolders] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   useEffect(() => {
     fetchFeedbackData();
@@ -97,6 +97,17 @@ const Analytics: React.FC = () => {
     
     return folderMatch && dateMatch;
   });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentData = filteredData.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedFolder, dateRange]);
 
   const exportData = () => {
     const exportData = filteredData.map(item => ({
@@ -150,41 +161,22 @@ const Analytics: React.FC = () => {
   const avgPedagogyRating = filteredData.reduce((sum, item) => sum + (item.pedagogy_rating || 0), 0) / 
     filteredData.filter(item => item.pedagogy_rating).length || 0;
 
-  // Prepare chart data
-  const ratingData = [
-    { 
-      category: 'Standard Alignment', 
-      rating: Number(avgStandardRating.toFixed(1)),
-      fill: COLORS.standard
-    },
-    { 
-      category: 'Quality', 
-      rating: Number(avgQualityRating.toFixed(1)),
-      fill: COLORS.quality
-    },
-    { 
-      category: 'Pedagogy', 
-      rating: Number(avgPedagogyRating.toFixed(1)),
-      fill: COLORS.pedagogy
-    }
-  ];
-
   // Radar chart data for average ratings
   const radarData = [
     {
       category: 'Standard Alignment',
       rating: avgStandardRating,
-      fullMark: 5
+      fullMark: 3
     },
     {
       category: 'Quality',
       rating: avgQualityRating,
-      fullMark: 5
+      fullMark: 3
     },
     {
       category: 'Pedagogy',
       rating: avgPedagogyRating,
-      fullMark: 5
+      fullMark: 3
     }
   ];
 
@@ -205,23 +197,6 @@ const Analytics: React.FC = () => {
         folderFeedback.filter(item => item.pedagogy_rating).length || 0,
     };
   });
-
-  // Timeline data (feedback over time)
-  const timelineData = filteredData.reduce((acc, item) => {
-    const date = new Date(item.created_at).toLocaleDateString();
-    const existing = acc.find(d => d.date === date);
-    if (existing) {
-      existing.count += 1;
-      existing.ratingsCount += (item.standard_alignment_rating || item.quality_rating || item.pedagogy_rating) ? 1 : 0;
-    } else {
-      acc.push({ 
-        date, 
-        count: 1,
-        ratingsCount: (item.standard_alignment_rating || item.quality_rating || item.pedagogy_rating) ? 1 : 0
-      });
-    }
-    return acc;
-  }, [] as { date: string; count: number; ratingsCount: number }[]).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   if (loading) {
     return (
@@ -350,7 +325,7 @@ const Analytics: React.FC = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {((avgStandardRating + avgQualityRating + avgPedagogyRating) / 3).toFixed(2)}/5
+                  {((avgStandardRating + avgQualityRating + avgPedagogyRating) / 3).toFixed(2)}/3
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Average across all categories
@@ -363,7 +338,7 @@ const Analytics: React.FC = () => {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{avgStandardRating.toFixed(2)}/5</div>
+                <div className="text-2xl font-bold">{avgStandardRating.toFixed(2)}/3</div>
                 <p className="text-xs text-muted-foreground">
                   Standard alignment score
                 </p>
@@ -375,7 +350,7 @@ const Analytics: React.FC = () => {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{avgQualityRating.toFixed(2)}/5</div>
+                <div className="text-2xl font-bold">{avgQualityRating.toFixed(2)}/3</div>
                 <p className="text-xs text-muted-foreground">
                   Content quality score
                 </p>
@@ -387,7 +362,7 @@ const Analytics: React.FC = () => {
                 <TrendingUp className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{avgPedagogyRating.toFixed(2)}/5</div>
+                <div className="text-2xl font-bold">{avgPedagogyRating.toFixed(2)}/3</div>
                 <p className="text-xs text-muted-foreground">
                   Teaching effectiveness
                 </p>
@@ -397,24 +372,6 @@ const Analytics: React.FC = () => {
 
           {/* Charts Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Average Ratings Bar Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Average Ratings by Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={ratingData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="category" />
-                    <YAxis domain={[0, 5]} />
-                    <Tooltip />
-                    <Bar dataKey="rating" fill={COLORS.standard} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
             {/* Radar Chart for Ratings */}
             <Card>
               <CardHeader>
@@ -425,7 +382,7 @@ const Analytics: React.FC = () => {
                   <RadarChart data={radarData}>
                     <PolarGrid />
                     <PolarAngleAxis dataKey="category" />
-                    <PolarRadiusAxis angle={90} domain={[0, 5]} />
+                    <PolarRadiusAxis angle={90} domain={[0, 3]} />
                     <Radar
                       name="Rating"
                       dataKey="rating"
@@ -450,7 +407,7 @@ const Analytics: React.FC = () => {
                     <BarChart data={folderData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="folder_name" />
-                      <YAxis domain={[0, 5]} />
+                      <YAxis domain={[0, 3]} />
                       <Tooltip />
                       <Legend />
                       <Bar dataKey="avg_standard" name="Standard" fill={COLORS.standard} />
@@ -461,26 +418,6 @@ const Analytics: React.FC = () => {
                 </CardContent>
               </Card>
             )}
-
-            {/* Timeline */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Feedback Timeline</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={timelineData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="count" strokeWidth={2} name="Total Feedback" stroke={COLORS.count} />
-                    <Line type="monotone" dataKey="ratingsCount" strokeWidth={2} name="With Ratings" stroke={COLORS.ratingsCount} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Recent Feedback Table */}
@@ -502,7 +439,7 @@ const Analytics: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredData.slice(0, 20).map((item) => (
+                    {currentData.map((item) => (
                       <tr key={item.id} className="border-b hover:bg-muted/50">
                         <td className="p-3">{new Date(item.created_at).toLocaleDateString()}</td>
                         <td className="p-3">
@@ -517,17 +454,17 @@ const Analytics: React.FC = () => {
                             <div className="flex flex-col gap-1 text-xs">
                               {item.standard_alignment_rating && (
                                 <span className="flex items-center gap-1">
-                                  <span className="font-medium">S:</span> {item.standard_alignment_rating}/5
+                                  <span className="font-medium">S:</span> {item.standard_alignment_rating.toFixed(2)}/3
                                 </span>
                               )}
                               {item.quality_rating && (
                                 <span className="flex items-center gap-1">
-                                  <span className="font-medium">Q:</span> {item.quality_rating}/5
+                                  <span className="font-medium">Q:</span> {item.quality_rating.toFixed(2)}/3
                                 </span>
                               )}
                               {item.pedagogy_rating && (
                                 <span className="flex items-center gap-1">
-                                  <span className="font-medium">P:</span> {item.pedagogy_rating}/5
+                                  <span className="font-medium">P:</span> {item.pedagogy_rating.toFixed(2)}/3
                                 </span>
                               )}
                             </div>
@@ -554,6 +491,116 @@ const Analytics: React.FC = () => {
                   </div>
                 )}
               </div>
+              
+              {/* Pagination */}
+              {filteredData.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between mt-4 gap-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of {filteredData.length} entries
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      {(() => {
+                        const pages = [];
+                        const maxVisiblePages = 5;
+                        
+                        if (totalPages <= maxVisiblePages) {
+                          // Show all pages if total is small
+                          for (let i = 1; i <= totalPages; i++) {
+                            pages.push(
+                              <Button
+                                key={i}
+                                variant={currentPage === i ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentPage(i)}
+                                className="w-8 h-8"
+                              >
+                                {i}
+                              </Button>
+                            );
+                          }
+                        } else {
+                          // Always show first page
+                          pages.push(
+                            <Button
+                              key={1}
+                              variant={currentPage === 1 ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setCurrentPage(1)}
+                              className="w-8 h-8"
+                            >
+                              1
+                            </Button>
+                          );
+                          
+                          // Show ellipsis if there's a gap
+                          if (currentPage > 3) {
+                            pages.push(<span key="ellipsis1" className="px-2">...</span>);
+                          }
+                          
+                          // Show pages around current page
+                          const start = Math.max(2, currentPage - 1);
+                          const end = Math.min(totalPages - 1, currentPage + 1);
+                          
+                          for (let i = start; i <= end; i++) {
+                            pages.push(
+                              <Button
+                                key={i}
+                                variant={currentPage === i ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentPage(i)}
+                                className="w-8 h-8"
+                              >
+                                {i}
+                              </Button>
+                            );
+                          }
+                          
+                          // Show ellipsis if there's a gap
+                          if (currentPage < totalPages - 2) {
+                            pages.push(<span key="ellipsis2" className="px-2">...</span>);
+                          }
+                          
+                          // Always show last page
+                          if (totalPages > 1) {
+                            pages.push(
+                              <Button
+                                key={totalPages}
+                                variant={currentPage === totalPages ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentPage(totalPages)}
+                                className="w-8 h-8"
+                              >
+                                {totalPages}
+                              </Button>
+                            );
+                          }
+                        }
+                        
+                        return pages;
+                      })()}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
