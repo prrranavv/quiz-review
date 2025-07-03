@@ -313,16 +313,33 @@ export const getAllFeedback = async () => {
   }
   
   try {
-    const { data, error } = await supabase
-      .from('feedback')
-      .select('*')
-      .order('created_at', { ascending: false })
+    // Fetch all records by setting a high limit and using pagination if needed
+    let allData: any[] = []
+    let from = 0
+    const limit = 1000
+    let hasMore = true
     
-    if (error) {
-      throw new Error(`Failed to fetch all feedback: ${error.message}`)
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('feedback')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + limit - 1)
+      
+      if (error) {
+        throw new Error(`Failed to fetch all feedback: ${error.message}`)
+      }
+      
+      if (data && data.length > 0) {
+        allData = [...allData, ...data]
+        from += limit
+        hasMore = data.length === limit
+      } else {
+        hasMore = false
+      }
     }
     
-    return data || []
+    return allData
   } catch (err) {
     if (err instanceof Error) {
       throw err

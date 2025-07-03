@@ -165,17 +165,17 @@ const Analytics: React.FC = () => {
   const radarData = [
     {
       category: 'Standard Alignment',
-      rating: avgStandardRating,
+      rating: parseFloat(avgStandardRating.toFixed(2)),
       fullMark: 3
     },
     {
       category: 'Quality',
-      rating: avgQualityRating,
+      rating: parseFloat(avgQualityRating.toFixed(2)),
       fullMark: 3
     },
     {
       category: 'Pedagogy',
-      rating: avgPedagogyRating,
+      rating: parseFloat(avgPedagogyRating.toFixed(2)),
       fullMark: 3
     }
   ];
@@ -185,16 +185,20 @@ const Analytics: React.FC = () => {
     const folderRatings = folderFeedback.filter(item => 
       item.standard_alignment_rating || item.quality_rating || item.pedagogy_rating
     );
+    const avgStandard = folderFeedback.reduce((sum, item) => sum + (item.standard_alignment_rating || 0), 0) / 
+      folderFeedback.filter(item => item.standard_alignment_rating).length || 0;
+    const avgQuality = folderFeedback.reduce((sum, item) => sum + (item.quality_rating || 0), 0) / 
+      folderFeedback.filter(item => item.quality_rating).length || 0;
+    const avgPedagogy = folderFeedback.reduce((sum, item) => sum + (item.pedagogy_rating || 0), 0) / 
+      folderFeedback.filter(item => item.pedagogy_rating).length || 0;
+    
     return {
       folder_name: folder,
       total_feedback: folderFeedback.length,
       ratings_count: folderRatings.length,
-      avg_standard: folderFeedback.reduce((sum, item) => sum + (item.standard_alignment_rating || 0), 0) / 
-        folderFeedback.filter(item => item.standard_alignment_rating).length || 0,
-      avg_quality: folderFeedback.reduce((sum, item) => sum + (item.quality_rating || 0), 0) / 
-        folderFeedback.filter(item => item.quality_rating).length || 0,
-      avg_pedagogy: folderFeedback.reduce((sum, item) => sum + (item.pedagogy_rating || 0), 0) / 
-        folderFeedback.filter(item => item.pedagogy_rating).length || 0,
+      avg_standard: parseFloat(avgStandard.toFixed(2)),
+      avg_quality: parseFloat(avgQuality.toFixed(2)),
+      avg_pedagogy: parseFloat(avgPedagogy.toFixed(2)),
     };
   });
 
