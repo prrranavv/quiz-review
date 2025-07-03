@@ -11,6 +11,8 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import {
   BarChart,
@@ -29,7 +31,7 @@ import {
 } from 'recharts';
 import { DateRange } from 'react-day-picker';
 import { isWithinInterval, parseISO } from 'date-fns';
-import { CalendarDays, Filter, TrendingUp, Download, MessageSquare, BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, Filter, TrendingUp, Download, MessageSquare, BarChart3, ChevronLeft, ChevronRight, Check, ChevronsUpDown, Brain, Loader2 } from 'lucide-react';
 
 interface FeedbackData {
   id: string;
@@ -59,11 +61,17 @@ const Analytics: React.FC = () => {
   const [feedbackData, setFeedbackData] = useState<FeedbackData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFolder, setSelectedFolder] = useState<string>('all');
+  const [selectedFolders, setSelectedFolders] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [folders, setFolders] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  
+  // AI Summary states
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAiDialog, setShowAiDialog] = useState(false);
 
   useEffect(() => {
     fetchFeedbackData();
@@ -85,9 +93,9 @@ const Analytics: React.FC = () => {
     }
   };
 
-  // Filter data based on selected folder and date range
+  // Filter data based on selected folders and date range
   const filteredData = feedbackData.filter(item => {
-    const folderMatch = selectedFolder === 'all' || item.folder_name === selectedFolder;
+    const folderMatch = selectedFolders.length === 0 || selectedFolders.includes(item.folder_name);
     
     const dateMatch = !dateRange?.from || !dateRange?.to || 
       isWithinInterval(parseISO(item.created_at), {
@@ -107,7 +115,7 @@ const Analytics: React.FC = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedFolder, dateRange]);
+  }, [selectedFolders, dateRange]);
 
   const exportData = () => {
     const exportData = filteredData.map(item => ({
@@ -202,6 +210,49 @@ const Analytics: React.FC = () => {
     };
   });
 
+  const handleFolderToggle = (folder: string) => {
+    setSelectedFolders(prev => 
+      prev.includes(folder) 
+        ? prev.filter(f => f !== folder)
+        : [...prev, folder]
+    );
+  };
+
+  const generateAiSummary = async () => {
+    if (filteredData.length === 0) {
+      setAiError('No feedback data available for analysis.');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+    setShowAiDialog(true);
+
+    try {
+      const response = await fetch('/api/ai-summary', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          feedbackData: filteredData
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to generate AI summary');
+      }
+
+      const data = await response.json();
+      setAiSummary(data.summary);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to generate AI summary');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -247,19 +298,47 @@ const Analytics: React.FC = () => {
                 <span className="text-sm font-medium">Filters:</span>
               </div>
               
-              <Select value={selectedFolder} onValueChange={setSelectedFolder}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select folder" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Folders</SelectItem>
-                  {folders.map(folder => (
-                    <SelectItem key={folder} value={folder}>
-                      {folder}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className="w-[300px] justify-between"
+                  >
+                    {selectedFolders.length === 0 
+                      ? "Select folders" 
+                      : selectedFolders.length === 1 
+                        ? (selectedFolders[0].length > 30 ? selectedFolders[0].substring(0, 30) + "..." : selectedFolders[0])
+                        : `${selectedFolders.length} folders`}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[400px] p-0">
+                  <div className="p-2">
+                    <div className="flex items-center px-2 py-1.5 text-sm font-semibold">
+                      Select Folders
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {folders.map((folder) => (
+                        <div
+                          key={folder}
+                          className="flex items-center space-x-2 px-2 py-1.5 text-sm hover:bg-muted cursor-pointer"
+                          onClick={() => handleFolderToggle(folder)}
+                        >
+                          <div className="flex h-4 w-4 items-center justify-center border border-primary rounded-sm">
+                            {selectedFolders.includes(folder) && (
+                              <Check className="h-3 w-3" />
+                            )}
+                          </div>
+                          <label className="text-xs flex-1 cursor-pointer leading-relaxed">
+                            {folder}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
 
               <DateRangePicker
                 date={dateRange}
@@ -276,12 +355,12 @@ const Analytics: React.FC = () => {
                 Export CSV
               </Button>
 
-              {(selectedFolder !== 'all' || dateRange?.from) && (
+              {(selectedFolders.length > 0 || dateRange?.from) && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setSelectedFolder('all');
+                    setSelectedFolders([]);
                     setDateRange(undefined);
                   }}
                 >
@@ -292,12 +371,16 @@ const Analytics: React.FC = () => {
           </div>
 
           {/* Active Filters Badge */}
-          {(selectedFolder !== 'all' || dateRange?.from) && (
-            <div className="flex gap-2">
-              {selectedFolder !== 'all' && (
-                <Badge variant="secondary">
-                  Folder: {selectedFolder}
-                </Badge>
+          {(selectedFolders.length > 0 || dateRange?.from) && (
+            <div className="flex gap-2 flex-wrap">
+              {selectedFolders.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {selectedFolders.map(folder => (
+                    <Badge key={folder} variant="secondary">
+                      {folder}
+                    </Badge>
+                  ))}
+                </div>
               )}
               {dateRange?.from && (
                 <Badge variant="secondary">
@@ -401,14 +484,16 @@ const Analytics: React.FC = () => {
             </Card>
 
             {/* Ratings by Folder */}
-            {selectedFolder === 'all' && (
+            {(selectedFolders.length === 0 || selectedFolders.length > 1) && (
               <Card>
                 <CardHeader>
                   <CardTitle>Average Ratings by Folder</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={folderData}>
+                    <BarChart data={folderData.filter(folder => 
+                      selectedFolders.length === 0 || selectedFolders.includes(folder.folder_name)
+                    )}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="folder_name" />
                       <YAxis domain={[0, 3]} />
@@ -426,8 +511,28 @@ const Analytics: React.FC = () => {
 
           {/* Recent Feedback Table */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
               <CardTitle>Recent Feedback Details</CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  onClick={generateAiSummary}
+                  disabled={filteredData.length === 0 || aiLoading}
+                  className="flex items-center gap-2"
+                  variant="outline"
+                >
+                  {aiLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-4 w-4" />
+                      AI Analysis
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -609,6 +714,75 @@ const Analytics: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* AI Summary Dialog */}
+      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5" />
+              AI Feedback Analysis
+              {selectedFolders.length > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {selectedFolders.length === 1 
+                    ? selectedFolders[0].substring(0, 30) + (selectedFolders[0].length > 30 ? '...' : '')
+                    : `${selectedFolders.length} folders`}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="mt-4">
+            {aiLoading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin mr-2" />
+                <span>Analyzing feedback data with AI...</span>
+              </div>
+            )}
+            
+            {aiError && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <h4 className="text-red-800 font-medium">Error generating AI summary</h4>
+                <p className="text-red-600 mt-1">{aiError}</p>
+                <Button 
+                  onClick={generateAiSummary} 
+                  className="mt-3" 
+                  variant="outline"
+                  size="sm"
+                >
+                  Try Again
+                </Button>
+              </div>
+            )}
+            
+            {aiSummary && !aiLoading && (
+              <div className="prose prose-sm max-w-none">
+                <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                  <p className="text-sm text-gray-600 mb-2">
+                    <strong>Analysis Overview:</strong> Analyzed {filteredData.length} feedback entries
+                    {selectedFolders.length > 0 && ` from ${selectedFolders.length} selected folder${selectedFolders.length > 1 ? 's' : ''}`}
+                  </p>
+                </div>
+                
+                <div 
+                  className="whitespace-pre-wrap text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ 
+                    __html: aiSummary
+                      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                      .replace(/^#{1,6}\s(.+)$/gm, (match, title) => {
+                        const level = match.indexOf(' ');
+                        return `<h${level} class="font-bold text-lg mt-4 mb-2">${title}</h${level}>`;
+                      })
+                      .replace(/\n\n/g, '</p><p class="mb-3">')
+                      .replace(/^(.+)$/gm, '<p class="mb-3">$1</p>')
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
