@@ -55,9 +55,28 @@ export interface CSVQuizData {
   description?: string;
   title?: string;
   questionCount?: number;
+  teacherName?: string;
   // Legacy fields for backward compatibility
   subject?: string;
   grade?: string;
+}
+
+// Teacher Vetting CSV structure
+export interface TeacherVettingCSVData {
+  state?: string;
+  subject?: string;
+  grade?: string;
+  domain?: string;
+  topic?: string;
+  instructure_code?: string;
+  display_standard_code?: string;
+  description?: string;
+  quiz_id: string;
+  quiz_title?: string;
+  quiz_type?: string;
+  num_questions?: number;
+  variety_tag?: string;
+  score?: number;
 }
 
 // Quiz summary for list view - updated with hierarchical fields
@@ -74,9 +93,17 @@ export interface QuizSummary {
   topic?: string;
   standard?: string;
   description?: string;
+  teacherName?: string;
   // Legacy metadata from CSV for backward compatibility
   subject?: string;
   grade?: string;
+  // Teacher vetting specific fields
+  state?: string;
+  instructure_code?: string;
+  display_standard_code?: string;
+  quiz_type?: string;
+  variety_tag?: string;
+  score?: number;
 }
 
 // Hierarchical tree structure for sidebar navigation
@@ -94,6 +121,33 @@ export interface TreeNode {
 // Grouped quizzes by standard (legacy)
 export interface GroupedQuizzes {
   [standard: string]: QuizSummary[];
+}
+
+// Teacher Vetting Feedback interfaces
+export interface TeacherVettingFeedback {
+  folderName: string;
+  quizId: string;
+  approved?: boolean;
+  usability?: number; // 1-3 scale
+  standardsAlignment?: number; // 1-3 scale
+  jtbd?: string;
+  feedback?: string;
+  reviewerName?: string;
+  vettingStatus?: string;
+  // CSV data included for context
+  state?: string;
+  subject?: string;
+  grade?: string;
+  domain?: string;
+  topic?: string;
+  instructureCode?: string;
+  displayStandardCode?: string;
+  description?: string;
+  quizTitle?: string;
+  quizType?: string;
+  numQuestions?: number;
+  varietyTag?: string;
+  score?: number;
 }
 
 // Note: Feedback functionality will be added in future iterations 

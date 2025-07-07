@@ -77,9 +77,11 @@ const Analytics: React.FC = () => {
     fetchFeedbackData();
   }, []);
 
-  const fetchFeedbackData = async () => {
+  const fetchFeedbackData = async (retryCount = 0) => {
     try {
       setLoading(true);
+      setError(null);
+      
       const data = await getAllFeedback();
       setFeedbackData(data as FeedbackData[]);
       
@@ -87,7 +89,20 @@ const Analytics: React.FC = () => {
       const uniqueFolders = Array.from(new Set((data as FeedbackData[]).map(item => item.folder_name)));
       setFolders(uniqueFolders);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch data';
+      
+      // Retry on network failures
+      if (retryCount < 2 && errorMessage.includes('Failed to fetch')) {
+        console.log(`Retrying analytics data fetch (attempt ${retryCount + 1}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return fetchFeedbackData(retryCount + 1);
+      }
+      
+      if (errorMessage.includes('Failed to fetch')) {
+        setError('Network connection issue. Please check your internet connection and try again.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -272,7 +287,23 @@ const Analytics: React.FC = () => {
         <Navigation />
         <div className="container mx-auto px-4 py-8">
           <div className="flex items-center justify-center h-64">
-            <div className="text-lg text-red-500">Error: {error}</div>
+            <div className="text-center space-y-4">
+              <div className="text-lg text-red-500">Error: {error}</div>
+              {error.includes('Network connection issue') && (
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    This is usually a temporary issue. Please try again.
+                  </p>
+                  <Button 
+                    onClick={() => fetchFeedbackData()}
+                    className="text-blue-600 hover:text-blue-700"
+                    variant="outline"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -331,10 +362,10 @@ const Analytics: React.FC = () => {
                             )}
                           </div>
                           <label className="text-xs flex-1 cursor-pointer leading-relaxed">
-                            {folder}
+                      {folder}
                           </label>
                         </div>
-                      ))}
+                  ))}
                     </div>
                   </div>
                 </PopoverContent>
@@ -378,7 +409,7 @@ const Analytics: React.FC = () => {
                   {selectedFolders.map(folder => (
                     <Badge key={folder} variant="secondary">
                       {folder}
-                    </Badge>
+                </Badge>
                   ))}
                 </div>
               )}

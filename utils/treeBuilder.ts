@@ -1,4 +1,4 @@
-import { CSVQuizData, QuizSummary, TreeNode } from '../types';
+import { CSVQuizData, QuizSummary, TreeNode, TeacherVettingCSVData } from '../types';
 
 export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
   const domainMap = new Map<string, TreeNode>();
@@ -123,8 +123,31 @@ export function parseCSVToQuizSummaries(csvData: CSVQuizData[]): QuizSummary[] {
     topic: row.topic,
     standard: row.standard,
     description: row.description,
+    teacherName: row.teacherName,
     // Keep legacy fields for backward compatibility
     subject: row.subject,
     grade: row.grade
+  }));
+}
+
+export function parseTeacherVettingCSVToQuizSummaries(csvData: TeacherVettingCSVData[]): QuizSummary[] {
+  return csvData.map(row => ({
+    id: row.quiz_id,
+    title: row.quiz_title || `Quiz ${row.quiz_id.substring(0, 8)}...`,
+    questionCount: row.num_questions || 0,
+    status: 'loaded' as const,
+    domain: row.domain,
+    topic: row.topic,
+    standard: row.display_standard_code || row.instructure_code,
+    description: row.description,
+    // Teacher vetting specific fields
+    state: row.state,
+    subject: row.subject,
+    grade: row.grade,
+    instructure_code: row.instructure_code,
+    display_standard_code: row.display_standard_code,
+    quiz_type: row.quiz_type,
+    variety_tag: row.variety_tag,
+    score: row.score
   }));
 } 

@@ -1,26 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { QuizSummary, TreeNode } from '../types';
 import TreeView from './TreeView';
-import InlineFeedback from './InlineFeedback';
+import TeacherVettingInlineFeedback from '@/components/TeacherVettingInlineFeedback';
 import { buildTreeFromQuizzes } from '../utils/treeBuilder';
-import { saveQuickFeedback, getSpecificFeedback, getFeedbackForQuizzes } from '../utils/supabase';
+import { saveTeacherVettingFeedback, getTeacherVettingFeedbackForQuizzes } from '../utils/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { ThumbsUp, ThumbsDown, MessageSquare, ExternalLink, Copy } from 'lucide-react';
+import { Check, MessageSquare, ExternalLink, Copy, ArrowLeft, X, CheckCircle, XCircle } from 'lucide-react';
 
-interface QuizViewerProps {
+interface TeacherVettingQuizViewerProps {
   quizzes: QuizSummary[];
   onBack: () => void;
   folderName: string;
 }
 
-const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) => {
+const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ quizzes, onBack, folderName }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<QuizSummary | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [showInlineFeedback, setShowInlineFeedback] = useState(false);
-  const [feedbackLoading, setFeedbackLoading] = useState<'thumbsUp' | 'thumbsDown' | null>(null);
   const [existingFeedback, setExistingFeedback] = useState<any>(null);
   const [reviewedQuizzes, setReviewedQuizzes] = useState<Set<string>>(new Set());
   const [isViewMode, setIsViewMode] = useState(false);
@@ -42,7 +41,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
   const loadReviewedQuizzes = async () => {
     try {
       const quizIds = quizzes.map(q => q.id);
-      const feedbackData = await getFeedbackForQuizzes(folderName, quizIds);
+      const feedbackData = await getTeacherVettingFeedbackForQuizzes(folderName, quizIds);
       const reviewed = new Set(feedbackData.map(f => f.quiz_id));
       setReviewedQuizzes(reviewed);
     } catch (error) {
@@ -64,8 +63,9 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
     if (!selectedQuiz) return;
     
     try {
-      const feedback = await getSpecificFeedback(folderName, selectedQuiz.standard || '', selectedQuiz.id);
-      setExistingFeedback(feedback);
+      const feedbackData = await getTeacherVettingFeedbackForQuizzes(folderName, [selectedQuiz.id]);
+      const feedback = feedbackData.find(f => f.quiz_id === selectedQuiz.id);
+      setExistingFeedback(feedback || null);
       setIsViewMode(false);
     } catch (error) {
       setExistingFeedback(null);
@@ -75,12 +75,10 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
 
   const handleQuizSelect = (quiz: QuizSummary) => {
     setSelectedQuiz(quiz);
-    setIsDescriptionExpanded(false); // Reset description expansion when selecting a new quiz
+    setIsDescriptionExpanded(false);
   };
 
   const handleRefreshPreview = () => {
-    // Force a hard refresh by temporarily changing the src to about:blank
-    // then back to the quiz URL, which will clear any session/login state
     const iframe = document.querySelector('iframe[title*="Preview of"]') as HTMLIFrameElement;
     if (iframe) {
       const originalSrc = iframe.src;
@@ -90,53 +88,15 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
         setIframeKey(prev => prev + 1);
       }, 100);
     } else {
-      // Fallback to just incrementing the key
       setIframeKey(prev => prev + 1);
-    }
-  };
-
-  const handleQuickFeedback = async (isPositive: boolean) => {
-    if (!selectedQuiz) return;
-
-    const feedbackType = isPositive ? 'thumbsUp' : 'thumbsDown';
-    setFeedbackLoading(feedbackType);
-
-    try {
-      await saveQuickFeedback({
-        folderName: folderName, // You might want to get this from context or props
-        domain: selectedQuiz.domain,
-        topic: selectedQuiz.topic,
-        standard: selectedQuiz.standard || '',
-        quizId: selectedQuiz.id,
-        thumbsUp: isPositive ? true : undefined,
-        thumbsDown: !isPositive ? true : undefined,
-      });
-      
-      // Reload feedback to update state
-      await loadQuizFeedback();
-      await loadReviewedQuizzes();
-      
-      toast({
-        description: `Feedback saved! ${isPositive ? '👍' : '👎'}`,
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to save feedback',
-      });
-    } finally {
-      setFeedbackLoading(null);
     }
   };
 
   const handleToggleFeedback = () => {
     if (existingFeedback && hasDetailedFeedback(existingFeedback)) {
-      // If detailed feedback exists, show in view mode
       setIsViewMode(!showInlineFeedback);
       setShowInlineFeedback(!showInlineFeedback);
     } else {
-      // If no detailed feedback, show in edit mode
       setIsViewMode(false);
       setShowInlineFeedback(!showInlineFeedback);
     }
@@ -145,17 +105,17 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
   const handleCloseFeedback = async () => {
     setShowInlineFeedback(false);
     setIsViewMode(false);
-    // Reload feedback data after closing (in case it was updated)
     await loadQuizFeedback();
     await loadReviewedQuizzes();
   };
 
   const hasDetailedFeedback = (feedback: any) => {
     return feedback && (
-      feedback.standard_alignment_rating || 
-      feedback.quality_rating || 
-      feedback.pedagogy_rating || 
-      feedback.feedback_text
+      feedback.usability || 
+      feedback.standards_alignment || 
+      feedback.jtbd || 
+      feedback.feedback ||
+      (feedback.approved !== null && feedback.approved !== undefined)
     );
   };
 
@@ -213,6 +173,53 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
     }
   }, [isDragging]);
 
+  // Add handler for approve/reject buttons
+  const handleApprovalAction = async (approved: boolean) => {
+    if (!selectedQuiz) return;
+    
+    try {
+      await saveTeacherVettingFeedback({
+        folderName,
+        quizId: selectedQuiz.id,
+        approved,
+        // Keep existing feedback if it exists
+        usability: existingFeedback?.usability,
+        standardsAlignment: existingFeedback?.standards_alignment,
+        jtbd: existingFeedback?.jtbd,
+        feedbackText: existingFeedback?.feedback,
+        reviewerName: 'Current Reviewer',
+        // CSV data for context
+        state: selectedQuiz.state,
+        subject: selectedQuiz.subject,
+        grade: selectedQuiz.grade,
+        domain: selectedQuiz.domain,
+        topic: selectedQuiz.topic,
+        instructureCode: selectedQuiz.instructure_code,
+        displayStandardCode: selectedQuiz.display_standard_code,
+        description: selectedQuiz.description,
+        quizTitle: selectedQuiz.title,
+        quizType: selectedQuiz.quiz_type,
+        numQuestions: selectedQuiz.questionCount,
+        varietyTag: selectedQuiz.variety_tag,
+        score: selectedQuiz.score,
+      });
+      
+      toast({
+        description: `Quiz ${approved ? 'approved' : 'rejected'} successfully! 🎉`,
+      });
+      
+      // Refresh feedback data
+      await loadQuizFeedback();
+      await loadReviewedQuizzes();
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to save approval',
+      });
+    }
+  };
+
   const renderQuizPreview = () => {
     if (!selectedQuiz) {
       return (
@@ -257,16 +264,6 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                  {selectedQuiz.domain && (
-                    <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-200">
-                      {selectedQuiz.domain}
-                    </Badge>
-                  )}
-                  {selectedQuiz.topic && (
-                    <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-200">
-                      {selectedQuiz.topic}
-                    </Badge>
-                  )}
                   {selectedQuiz.standard && (
                     <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200">
                       {selectedQuiz.standard}
@@ -284,50 +281,51 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
                 </div>
               </div>
               
-              {/* Action Buttons - Fixed Position */}
+              {/* Action Buttons */}
               <div className="flex items-center space-x-2 flex-shrink-0">
-                {/* Thumbs Down */}
+                {/* Approval Status */}
+                {existingFeedback && existingFeedback.approved !== null && existingFeedback.approved !== undefined && (
+                  <Badge 
+                    variant={existingFeedback.approved ? "default" : "destructive"}
+                    className={existingFeedback.approved 
+                      ? "bg-green-600 text-white" 
+                      : "bg-red-600 text-white"
+                    }
+                  >
+                    {existingFeedback.approved ? "Approved" : "Rejected"}
+                  </Badge>
+                )}
+
+                {/* Approve Button */}
                 <Button
-                  variant={existingFeedback?.thumbs_down ? "default" : "outline"}
-                  size="icon"
-                  onClick={() => handleQuickFeedback(false)}
-                  disabled={feedbackLoading === 'thumbsDown'}
-                  className={existingFeedback?.thumbs_down 
-                    ? "bg-red-600 text-white hover:bg-red-700" 
-                    : "text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 hover:border-red-300"
+                  variant={existingFeedback?.approved === true ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleApprovalAction(true)}
+                  className={existingFeedback?.approved === true 
+                    ? "bg-green-600 text-white hover:bg-green-700" 
+                    : "text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
                   }
-                  title="Thumbs down"
                 >
-                  {feedbackLoading === 'thumbsDown' ? (
-                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                  ) : (
-                    <ThumbsDown className={`h-4 w-4 ${existingFeedback?.thumbs_down ? 'fill-current' : ''}`} />
-                  )}
+                  <CheckCircle className="h-4 w-4" />
                 </Button>
 
-                {/* Thumbs Up */}
+                {/* Reject Button */}
                 <Button
-                  variant={existingFeedback?.thumbs_up ? "default" : "outline"}
-                  size="icon"
-                  onClick={() => handleQuickFeedback(true)}
-                  disabled={feedbackLoading === 'thumbsUp'}
-                  className={existingFeedback?.thumbs_up 
-                    ? "bg-green-600 text-white hover:bg-green-700" 
-                    : "text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200 hover:border-green-300"
+                  variant={existingFeedback?.approved === false ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleApprovalAction(false)}
+                  className={existingFeedback?.approved === false 
+                    ? "bg-red-600 text-white hover:bg-red-700" 
+                    : "text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200"
                   }
-                  title="Thumbs up"
                 >
-                  {feedbackLoading === 'thumbsUp' ? (
-                    <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                  ) : (
-                    <ThumbsUp className={`h-4 w-4 ${existingFeedback?.thumbs_up ? 'fill-current' : ''}`} />
-                  )}
+                  <XCircle className="h-4 w-4" />
                 </Button>
 
                 {/* Give Feedback Button */}
                 <Button onClick={handleToggleFeedback}>
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  {existingFeedback && hasDetailedFeedback(existingFeedback) ? 'Show Feedback' : 'Give Feedback'}
+                  {existingFeedback && hasDetailedFeedback(existingFeedback) ? 'Show Feedback' : 'Share feedback'}
                 </Button>
 
                 {/* Open in New Tab */}
@@ -337,7 +335,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Visit Wayground
+                    Wayground
                     <ExternalLink className="h-4 w-4 ml-2" />
                   </a>
                 </Button>
@@ -345,7 +343,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
             </div>
           </div>
           
-          {/* Separate Description Container - Full Width */}
+          {/* Description */}
           {selectedQuiz.description && (
             <div className="px-4 pb-4">
               <div className="text-sm text-gray-600 italic leading-relaxed">
@@ -393,16 +391,13 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
               onClick={handleCloseFeedback}
             >
               <div 
-                className="w-full max-w-md"
+                className="w-full max-w-lg"
                 onClick={(e) => e.stopPropagation()}
               >
-                <InlineFeedback
+                <TeacherVettingInlineFeedback
                   folderName={folderName}
-                  domain={selectedQuiz.domain}
-                  topic={selectedQuiz.topic}
-                  standard={selectedQuiz.standard || ''}
                   quizId={selectedQuiz.id}
-                  quizTitle={selectedQuiz.title}
+                  quizData={selectedQuiz}
                   onClose={handleCloseFeedback}
                   existingFeedback={existingFeedback}
                   isViewMode={isViewMode}
@@ -414,6 +409,10 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
       </>
     );
   };
+
+  const totalQuizzes = quizzes.length;
+  const reviewedCount = reviewedQuizzes.size;
+  const pendingCount = totalQuizzes - reviewedCount;
 
   return (
     <div className="flex h-screen bg-gray-50 relative">
@@ -430,6 +429,31 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
         style={{ width: `${leftPanelWidth}%` }}
       >
         <div className="h-full flex flex-col">
+          {/* Header with Back Button */}
+          <div className="p-4 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onBack}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Upload
+              </Button>
+              <div className="text-right">
+                <h1 className="text-sm font-semibold text-gray-900">
+                  {(() => {
+                    // Remove teacher-vetting prefix if present
+                    let cleanName = folderName.replace(/^teacher-vetting-\d+-/, '');
+                    return cleanName.length > 30 ? cleanName.substring(0, 30) + '...' : cleanName;
+                  })()}
+                </h1>
+                <p className="text-xs text-gray-600">{totalQuizzes} quizzes to review</p>
+              </div>
+            </div>
+          </div>
+          
           {/* Tree View */}
           <div className="flex-1 overflow-hidden">
             {treeNodes.length > 0 ? (
@@ -480,4 +504,4 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
   );
 };
 
-export default QuizViewer; 
+export default TeacherVettingQuizViewer; 

@@ -12,8 +12,9 @@ const hasValidCredentials =
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// Storage bucket name
+// Storage bucket names
 export const STORAGE_BUCKET = 'batches'
+export const TEACHER_VETTING_STORAGE_BUCKET = 'teacher-vetting-batches'
 
 // Export helper to check if Supabase is configured
 export const isSupabaseConfigured = () => hasValidCredentials
@@ -320,14 +321,215 @@ export const getAllFeedback = async () => {
     let hasMore = true
     
     while (hasMore) {
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*')
+      .order('created_at', { ascending: false })
+        .range(from, from + limit - 1)
+    
+    if (error) {
+      throw new Error(`Failed to fetch all feedback: ${error.message}`)
+    }
+    
+      if (data && data.length > 0) {
+        allData = [...allData, ...data]
+        from += limit
+        hasMore = data.length === limit
+      } else {
+        hasMore = false
+      }
+    }
+    
+    return allData
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to fetch all feedback: Unknown error occurred')
+  }
+}
+
+// Teacher Vetting Storage Functions
+export const uploadTeacherVettingFile = async (file: File, fileName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase.storage
+      .from(TEACHER_VETTING_STORAGE_BUCKET)
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      })
+    
+    if (error) {
+      throw new Error(`Teacher vetting upload failed: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Teacher vetting upload failed: Unknown error occurred')
+  }
+}
+
+export const getTeacherVettingUploadedFiles = async () => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  const { data, error } = await supabase.storage
+    .from(TEACHER_VETTING_STORAGE_BUCKET)
+    .list('', {
+      limit: 100,
+      offset: 0,
+      sortBy: { column: 'created_at', order: 'desc' }
+    })
+  
+  if (error) {
+    throw new Error(`Failed to fetch teacher vetting files: ${error.message}`)
+  }
+  
+  return data || []
+}
+
+export const downloadTeacherVettingFile = async (fileName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  const { data, error } = await supabase.storage
+    .from(TEACHER_VETTING_STORAGE_BUCKET)
+    .download(fileName)
+  
+  if (error) {
+    throw new Error(`Teacher vetting download failed: ${error.message}`)
+  }
+  
+  return data
+}
+
+// Teacher Vetting Feedback Functions
+export const saveTeacherVettingFeedback = async (feedback: {
+  folderName: string;
+  quizId: string;
+  approved?: boolean;
+  usability?: number;
+  standardsAlignment?: number;
+  jtbd?: string;
+  feedbackText?: string;
+  reviewerName?: string;
+  // CSV data
+  state?: string;
+  subject?: string;
+  grade?: string;
+  domain?: string;
+  topic?: string;
+  instructureCode?: string;
+  displayStandardCode?: string;
+  description?: string;
+  quizTitle?: string;
+  quizType?: string;
+  numQuestions?: number;
+  varietyTag?: string;
+  score?: number;
+}) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_feedback')
+      .upsert({
+        folder_name: feedback.folderName,
+        quiz_id: feedback.quizId,
+        approved: feedback.approved || null,
+        usability: feedback.usability || null,
+        standards_alignment: feedback.standardsAlignment || null,
+        jtbd: feedback.jtbd || null,
+        feedback: feedback.feedbackText || null,
+        reviewer_name: feedback.reviewerName || null,
+        vetting_status: feedback.approved !== undefined ? 'reviewed' : 'pending',
+        // CSV data
+        state: feedback.state || null,
+        subject: feedback.subject || null,
+        grade: feedback.grade || null,
+        domain: feedback.domain || null,
+        topic: feedback.topic || null,
+        instructure_code: feedback.instructureCode || null,
+        display_standard_code: feedback.displayStandardCode || null,
+        description: feedback.description || null,
+        quiz_title: feedback.quizTitle || null,
+        quiz_type: feedback.quizType || null,
+        num_questions: feedback.numQuestions || null,
+        variety_tag: feedback.varietyTag || null,
+        score: feedback.score || null,
+      }, {
+        onConflict: 'folder_name,quiz_id'
+      })
+    
+    if (error) {
+      throw new Error(`Failed to save teacher vetting feedback: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to save teacher vetting feedback: Unknown error occurred')
+  }
+}
+
+export const getTeacherVettingFeedbackForQuizzes = async (folderName: string, quizIds: string[]) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_feedback')
+      .select('*')
+      .eq('folder_name', folderName)
+      .in('quiz_id', quizIds)
+    
+    if (error) {
+      throw new Error(`Failed to fetch teacher vetting feedback: ${error.message}`)
+    }
+    
+    return data || []
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to fetch teacher vetting feedback: Unknown error occurred')
+  }
+}
+
+export const getAllTeacherVettingFeedback = async () => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    let allData: any[] = []
+    let from = 0
+    const limit = 1000
+    let hasMore = true
+    
+    while (hasMore) {
       const { data, error } = await supabase
-        .from('feedback')
+        .from('teacher_vetting_feedback')
         .select('*')
         .order('created_at', { ascending: false })
         .range(from, from + limit - 1)
       
       if (error) {
-        throw new Error(`Failed to fetch all feedback: ${error.message}`)
+        throw new Error(`Failed to fetch all teacher vetting feedback: ${error.message}`)
       }
       
       if (data && data.length > 0) {
@@ -344,6 +546,196 @@ export const getAllFeedback = async () => {
     if (err instanceof Error) {
       throw err
     }
-    throw new Error('Failed to fetch all feedback: Unknown error occurred')
+    throw new Error('Failed to fetch all teacher vetting feedback: Unknown error occurred')
+  }
+}
+
+// Teacher Vetting Assignment Functions
+export const assignTeacherVettingFolder = async (assignment: {
+  folderName: string;
+  assigneeEmail: string;
+  assigneeName: string;
+  assignedBy?: string;
+  notes?: string;
+}) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .upsert({
+        folder_name: assignment.folderName,
+        assignee_email: assignment.assigneeEmail,
+        assignee_name: assignment.assigneeName,
+        assigned_by: assignment.assignedBy || null,
+        notes: assignment.notes || null,
+        status: 'assigned'
+      }, {
+        onConflict: 'folder_name'
+      })
+    
+    if (error) {
+      throw new Error(`Failed to assign folder: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to assign folder: Unknown error occurred')
+  }
+}
+
+export const getTeacherVettingAssignment = async (folderName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .select('*')
+      .eq('folder_name', folderName)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+      throw new Error(`Failed to fetch assignment: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to fetch assignment: Unknown error occurred')
+  }
+}
+
+export const getAllTeacherVettingAssignments = async () => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .select('*')
+      .order('assigned_at', { ascending: false })
+    
+    if (error) {
+      throw new Error(`Failed to fetch assignments: ${error.message}`)
+    }
+    
+    return data || []
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to fetch assignments: Unknown error occurred')
+  }
+}
+
+export const updateTeacherVettingAssignment = async (folderName: string, updates: {
+  assigneeEmail?: string;
+  assigneeName?: string;
+  status?: string;
+  notes?: string;
+}) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .update({
+        ...(updates.assigneeEmail && { assignee_email: updates.assigneeEmail }),
+        ...(updates.assigneeName && { assignee_name: updates.assigneeName }),
+        ...(updates.status && { status: updates.status }),
+        ...(updates.notes !== undefined && { notes: updates.notes })
+      })
+      .eq('folder_name', folderName)
+    
+    if (error) {
+      throw new Error(`Failed to update assignment: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to update assignment: Unknown error occurred')
+  }
+}
+
+export const deleteTeacherVettingAssignment = async (folderName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .delete()
+      .eq('folder_name', folderName)
+    
+    if (error) {
+      throw new Error(`Failed to delete assignment: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to delete assignment: Unknown error occurred')
+  }
+}
+
+export const deleteTeacherVettingFolder = async (folderName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    // Delete all feedback for this folder
+    const { error: feedbackError } = await supabase
+      .from('teacher_vetting_feedback')
+      .delete()
+      .eq('folder_name', folderName)
+    
+    if (feedbackError) {
+      throw new Error(`Failed to delete feedback: ${feedbackError.message}`)
+    }
+    
+    // Delete assignment for this folder
+    const { error: assignmentError } = await supabase
+      .from('teacher_vetting_assignments')
+      .delete()
+      .eq('folder_name', folderName)
+    
+    if (assignmentError) {
+      throw new Error(`Failed to delete assignment: ${assignmentError.message}`)
+    }
+    
+    // Delete the actual file from storage
+    const { error: storageError } = await supabase.storage
+      .from(TEACHER_VETTING_STORAGE_BUCKET)
+      .remove([folderName])
+    
+    if (storageError) {
+      throw new Error(`Failed to delete file: ${storageError.message}`)
+    }
+    
+    return true
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to delete folder: Unknown error occurred')
   }
 } 
