@@ -442,35 +442,74 @@ export const saveTeacherVettingFeedback = async (feedback: {
   }
   
   try {
-    const { data, error } = await supabase
+    // Prepare the data to save
+    const feedbackData = {
+      folder_name: feedback.folderName,
+      quiz_id: feedback.quizId,
+      approved: feedback.approved !== undefined ? feedback.approved : null,
+      usability: feedback.usability || null,
+      standards_alignment: feedback.standardsAlignment || null,
+      jtbd: feedback.jtbd || null,
+      feedback: feedback.feedbackText || null,
+      reviewer_name: feedback.reviewerName || null,
+      vetting_status: feedback.approved !== undefined ? 'reviewed' : 'pending',
+      // CSV data
+      state: feedback.state || null,
+      subject: feedback.subject || null,
+      grade: feedback.grade || null,
+      domain: feedback.domain || null,
+      topic: feedback.topic || null,
+      instructure_code: feedback.instructureCode || null,
+      display_standard_code: feedback.displayStandardCode || null,
+      description: feedback.description || null,
+      quiz_title: feedback.quizTitle || null,
+      quiz_type: feedback.quizType || null,
+      num_questions: feedback.numQuestions || null,
+      variety_tag: feedback.varietyTag || null,
+      score: feedback.score || null,
+    };
+
+    // First, try to find existing record with the same context
+    const { data: existingData, error: selectError } = await supabase
       .from('teacher_vetting_feedback')
-      .upsert({
-        folder_name: feedback.folderName,
-        quiz_id: feedback.quizId,
-        approved: feedback.approved || null,
-        usability: feedback.usability || null,
-        standards_alignment: feedback.standardsAlignment || null,
-        jtbd: feedback.jtbd || null,
-        feedback: feedback.feedbackText || null,
-        reviewer_name: feedback.reviewerName || null,
-        vetting_status: feedback.approved !== undefined ? 'reviewed' : 'pending',
-        // CSV data
-        state: feedback.state || null,
-        subject: feedback.subject || null,
-        grade: feedback.grade || null,
-        domain: feedback.domain || null,
-        topic: feedback.topic || null,
-        instructure_code: feedback.instructureCode || null,
-        display_standard_code: feedback.displayStandardCode || null,
-        description: feedback.description || null,
-        quiz_title: feedback.quizTitle || null,
-        quiz_type: feedback.quizType || null,
-        num_questions: feedback.numQuestions || null,
-        variety_tag: feedback.varietyTag || null,
-        score: feedback.score || null,
-      }, {
-        onConflict: 'folder_name,quiz_id'
-      })
+      .select('id')
+      .eq('folder_name', feedbackData.folder_name)
+      .eq('quiz_id', feedbackData.quiz_id)
+      .eq('state', feedbackData.state || '')
+      .eq('subject', feedbackData.subject || '')
+      .eq('grade', feedbackData.grade || '')
+      .eq('domain', feedbackData.domain || '')
+      .eq('topic', feedbackData.topic || '')
+      .eq('instructure_code', feedbackData.instructure_code || '')
+      .eq('display_standard_code', feedbackData.display_standard_code || '')
+      .maybeSingle();
+
+    if (selectError) {
+      throw new Error(`Failed to check existing feedback: ${selectError.message}`)
+    }
+
+    let data, error;
+    
+    if (existingData) {
+      // Update existing record
+      const { data: updateData, error: updateError } = await supabase
+        .from('teacher_vetting_feedback')
+        .update(feedbackData)
+        .eq('id', existingData.id)
+        .select();
+      
+      data = updateData;
+      error = updateError;
+    } else {
+      // Insert new record
+      const { data: insertData, error: insertError } = await supabase
+        .from('teacher_vetting_feedback')
+        .insert(feedbackData)
+        .select();
+      
+      data = insertData;
+      error = insertError;
+    }
     
     if (error) {
       throw new Error(`Failed to save teacher vetting feedback: ${error.message}`)
