@@ -8,12 +8,14 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
     const domain = quiz.domain?.trim() || null;
     const topic = quiz.topic?.trim() || null;  
     const standard = quiz.standard?.trim() || 'Uncategorized';
+    const varietyTag = quiz.variety_tag?.trim() || 'General';
     
     // Build hierarchy key based on available data
     let hierarchyKey = '';
     let domainNode: TreeNode | null = null;
     let topicNode: TreeNode | null = null;
     let standardNode: TreeNode | null = null;
+    let varietyNode: TreeNode | null = null;
     
     // Level 1: Domain (only if exists)
     if (domain) {
@@ -84,7 +86,29 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
       }
     }
     
-    // Add quiz to standard level
+    // Level 4: Variety Tag (new level)
+    if (!standardNode) {
+      throw new Error(`Standard node should not be null for quiz ${quiz.id}`);
+    }
+    
+    hierarchyKey = topic 
+      ? (domain ? `domain:${domain}|topic:${topic}|standard:${standard}|variety:${varietyTag}` : `topic:${topic}|standard:${standard}|variety:${varietyTag}`)
+      : (domain ? `domain:${domain}|standard:${standard}|variety:${varietyTag}` : `standard:${standard}|variety:${varietyTag}`);
+    
+    varietyNode = standardNode.children.find(child => child.type === 'variety' && child.name === varietyTag) as TreeNode;
+    
+    if (!varietyNode) {
+      varietyNode = {
+        id: hierarchyKey,
+        name: varietyTag,
+        type: 'variety',
+        children: [],
+        isExpanded: false
+      };
+      standardNode.children.push(varietyNode);
+    }
+    
+    // Add quiz to variety level
     const quizNode: TreeNode = {
       id: `quiz-${quiz.id}`,
       name: quiz.title || `Quiz ${quiz.id.substring(0, 8)}...`,
@@ -93,7 +117,7 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
       quizId: quiz.id,
       quiz: quiz
     };
-    standardNode.children.push(quizNode);
+    varietyNode.children.push(quizNode);
   });
   
   // Convert map to array and sort
@@ -101,7 +125,21 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
   
   // Sort children at each level
   const sortNodes = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) => a.name.localeCompare(b.name));
+    nodes.sort((a, b) => {
+      // Sort quizzes by score in descending order
+      if (a.type === 'quiz' && b.type === 'quiz') {
+        const scoreA = a.quiz?.score ?? -Infinity;
+        const scoreB = b.quiz?.score ?? -Infinity;
+        // Sort by score descending, then by name ascending if scores are equal
+        if (scoreA !== scoreB) {
+          return scoreB - scoreA;
+        }
+        return a.name.localeCompare(b.name);
+      }
+      // For non-quiz nodes, sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
+    
     nodes.forEach(node => {
       if (node.children.length > 0) {
         sortNodes(node.children);

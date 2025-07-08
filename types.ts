@@ -110,7 +110,7 @@ export interface QuizSummary {
 export interface TreeNode {
   id: string;
   name: string;
-  type: 'domain' | 'topic' | 'standard' | 'quiz';
+  type: 'domain' | 'topic' | 'standard' | 'variety' | 'quiz';
   children: TreeNode[];
   quizId?: string;
   isExpanded?: boolean;

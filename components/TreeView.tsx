@@ -66,6 +66,12 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
             S
           </div>
         );
+      case 'variety':
+        return (
+          <div className="w-4 h-4 bg-purple-600 text-white text-xs font-bold rounded flex items-center justify-center">
+            V
+          </div>
+        );
       case 'quiz':
         return (
           <File className="w-4 h-4 text-purple-600" />
@@ -112,13 +118,18 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
             <div className="flex items-center justify-between">
               <div className={`text-sm leading-5 ${isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
                 {node.type === 'quiz' ? (
-                  <div className="flex items-center gap-2">
-                    <span>{node.name}</span>
-                    {node.quiz?.questionCount && node.quiz.questionCount > 0 && (
-                      <span className="text-xs text-gray-500 font-medium">
-                        {node.quiz.questionCount} Qs
-                      </span>
-                    )}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex-1 min-w-0 truncate">{node.name}</span>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 font-medium flex-shrink-0">
+                      {node.quiz?.questionCount && node.quiz.questionCount > 0 && (
+                        <span className="text-gray-600">{node.quiz.questionCount} Qs</span>
+                      )}
+                      {node.quiz?.score !== undefined && node.quiz.score !== null && (
+                        <div className="w-5 h-5 bg-slate-500 text-white text-xs font-semibold rounded-full flex items-center justify-center shadow-sm">
+                          {Math.round(node.quiz.score * 10) / 10}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   node.name
