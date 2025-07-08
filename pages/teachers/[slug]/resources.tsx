@@ -4,7 +4,7 @@ import Head from 'next/head';
 import TeacherVettingQuizViewer from '@/components/TeacherVettingQuizViewer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import { QuizSummary } from '@/types';
-import { safeGetFromLocalStorage } from '@/utils/localStorage';
+import { safeGetFromLocalStorage, safeSetToLocalStorage } from '@/utils/localStorage';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
@@ -46,6 +46,19 @@ const TeacherResources = () => {
     router.push('/teachers');
   };
 
+  const handleFolderNameChange = (newFileName: string) => {
+    setFolderName(newFileName);
+    // Update localStorage with the new filename
+    if (slug && typeof slug === 'string') {
+      safeSetToLocalStorage(`teacherVettingFileName:${slug}`, newFileName);
+    }
+  };
+
+  const getDisplayName = (fileName: string) => {
+    // Remove timestamp prefix and .csv extension
+    return fileName.replace(/^teacher-vetting-\d+-/, '').replace('.csv', '');
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -83,7 +96,7 @@ const TeacherResources = () => {
   return (
     <>
       <Head>
-        <title>{folderName} - Teacher Assignment</title>
+        <title>{folderName ? getDisplayName(folderName) : 'Teacher Assignment'}</title>
         <meta name="description" content="Teacher assignment review interface" />
         <link rel="icon" href="/books.png" />
       </Head>
@@ -92,6 +105,7 @@ const TeacherResources = () => {
           quizzes={quizSummaries}
           folderName={folderName}
           onBack={handleBackClick}
+          onFolderNameChange={handleFolderNameChange}
         />
       </ErrorBoundary>
     </>

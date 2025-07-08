@@ -3,19 +3,21 @@ import { QuizSummary, TreeNode } from '../types';
 import TreeView from './TreeView';
 import TeacherVettingInlineFeedback from '@/components/TeacherVettingInlineFeedback';
 import { buildTreeFromQuizzes } from '../utils/treeBuilder';
-import { saveTeacherVettingFeedback, getTeacherVettingFeedbackForQuizzes } from '../utils/supabase';
+import { saveTeacherVettingFeedback, getTeacherVettingFeedbackForQuizzes, renameTeacherVettingFile } from '../utils/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Check, MessageSquare, ExternalLink, Copy, ArrowLeft, X, CheckCircle, XCircle } from 'lucide-react';
+import { Check, MessageSquare, ExternalLink, Copy, ArrowLeft, X, CheckCircle, XCircle, Edit } from 'lucide-react';
 
 interface TeacherVettingQuizViewerProps {
   quizzes: QuizSummary[];
   onBack: () => void;
   folderName: string;
+  onFolderNameChange?: (newName: string) => void;
 }
 
-const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ quizzes, onBack, folderName }) => {
+const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ quizzes, onBack, folderName, onFolderNameChange }) => {
   const [selectedQuiz, setSelectedQuiz] = useState<QuizSummary | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
@@ -26,6 +28,9 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(33); // percentage
   const [isDragging, setIsDragging] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   const { toast } = useToast();
 
   // Build tree structure from quizzes and load feedback data
@@ -218,6 +223,82 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
         description: err instanceof Error ? err.message : 'Failed to save approval',
       });
     }
+  };
+
+  // Handle folder name editing
+  const handleStartEditing = () => {
+    setIsEditingName(true);
+    // Set the current display name (without timestamp prefix)
+    const cleanName = folderName.replace(/^teacher-vetting-\d+-/, '');
+    setEditingName(cleanName);
+  };
+
+  const handleCancelEditing = () => {
+    setIsEditingName(false);
+    setEditingName('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Folder name cannot be empty",
+      });
+      return;
+    }
+
+    if (editingName.trim() === folderName.replace(/^teacher-vetting-\d+-/, '')) {
+      // No change, just cancel editing
+      handleCancelEditing();
+      return;
+    }
+
+    setIsRenaming(true);
+    try {
+      // Extract timestamp from original filename
+      const timestampMatch = folderName.match(/^teacher-vetting-(\d+)-/);
+      const timestamp = timestampMatch ? timestampMatch[1] : Date.now().toString();
+      
+      // Create new filename with same timestamp but new name
+      const newFileName = `teacher-vetting-${timestamp}-${editingName.trim()}.csv`;
+      
+      // Rename the file and update database references
+      await renameTeacherVettingFile(folderName, newFileName);
+      
+      // Update the parent component if callback is provided
+      if (onFolderNameChange) {
+        onFolderNameChange(newFileName);
+      }
+      
+      toast({
+        description: "Folder name updated successfully! 🎉",
+      });
+      
+      setIsEditingName(false);
+      setEditingName('');
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to rename folder',
+      });
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEditing();
+    }
+  };
+
+  const getDisplayName = (fileName: string) => {
+    // Remove timestamp prefix and .csv extension
+    return fileName.replace(/^teacher-vetting-\d+-/, '').replace('.csv', '');
   };
 
   const renderQuizPreview = () => {
@@ -441,15 +522,52 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
                 <ArrowLeft className="h-4 w-4" />
                 Back to Upload
               </Button>
-              <div className="text-right">
-                <h1 className="text-sm font-semibold text-gray-900">
-                  {(() => {
-                    // Remove teacher-vetting prefix if present
-                    let cleanName = folderName.replace(/^teacher-vetting-\d+-/, '');
-                    return cleanName.length > 30 ? cleanName.substring(0, 30) + '...' : cleanName;
-                  })()}
-                </h1>
-                <p className="text-xs text-gray-600">{totalQuizzes} quizzes to review</p>
+              <div className="text-right flex-1 max-w-[200px]">
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      className="text-sm h-8"
+                      placeholder="Enter folder name"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSaveEdit}
+                        disabled={isRenaming}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Check className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelEditing}
+                        disabled={isRenaming}
+                        className="h-8 w-8 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="group cursor-pointer" onClick={handleStartEditing}>
+                    <div className="flex items-center gap-2 justify-end">
+                      <h1 className="text-sm font-semibold text-gray-900">
+                        {(() => {
+                          const cleanName = getDisplayName(folderName);
+                          return cleanName.length > 30 ? cleanName.substring(0, 30) + '...' : cleanName;
+                        })()}
+                      </h1>
+                      <Edit className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+                    <p className="text-xs text-gray-600">{totalQuizzes} quizzes to review</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

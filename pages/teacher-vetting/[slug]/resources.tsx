@@ -86,9 +86,9 @@ export default function TeacherVettingResources() {
             const csvData = parseCSV(text);
             const summaries = parseTeacherVettingCSVToQuizSummaries(csvData);
             safeSetToLocalStorage(`teacherVettingQuizData:${slug}`, summaries);
-            safeSetToLocalStorage(`teacherVettingFileName:${slug}`, match.name.replace(/^teacher-vetting-\d+-/, '').replace('.csv',''));
+            safeSetToLocalStorage(`teacherVettingFileName:${slug}`, match.name);
             setQuizzes(summaries);
-            setFileName(match.name.replace(/^teacher-vetting-\d+-/, '').replace('.csv',''));
+            setFileName(match.name);
           } else {
             router.push('/teacher-vetting');
           }
@@ -103,16 +103,30 @@ export default function TeacherVettingResources() {
     router.push('/teacher-vetting');
   };
 
+  const handleFolderNameChange = (newFileName: string) => {
+    setFileName(newFileName);
+    // Update localStorage with the new filename
+    if (slug) {
+      safeSetToLocalStorage(`teacherVettingFileName:${slug}`, newFileName);
+    }
+  };
+
+  const getDisplayName = (fileName: string) => {
+    // Remove timestamp prefix and .csv extension
+    return fileName.replace(/^teacher-vetting-\d+-/, '').replace('.csv', '');
+  };
+
   return (
     <> 
       <Head>
-        <title>Teacher Vetting: {fileName || 'HQRL Resources'}</title>
+        <title>Teacher Vetting: {fileName ? getDisplayName(fileName) : 'HQRL Resources'}</title>
         <link rel="icon" href="/books.png" />
       </Head>
       <TeacherVettingQuizViewer 
         quizzes={quizzes} 
         onBack={handleBackToHome} 
         folderName={fileName || slugify(fileName || '')} 
+        onFolderNameChange={handleFolderNameChange}
       />
     </>
   );

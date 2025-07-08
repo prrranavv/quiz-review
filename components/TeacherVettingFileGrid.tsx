@@ -7,7 +7,8 @@ import {
   assignTeacherVettingFolder,
   getTeacherVettingAssignment,
   deleteTeacherVettingFolder,
-  getAllTeacherVettingAssignments
+  getAllTeacherVettingAssignments,
+  renameTeacherVettingFile
 } from '../utils/supabase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import FileUploader from './FileUploader';
 import { 
   Calendar, 
@@ -26,7 +28,9 @@ import {
   Trash2,
   Edit,
   User,
-  Mail
+  Mail,
+  Check,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -69,6 +73,9 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
   const [assignLoading, setAssignLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [assignmentsLoaded, setAssignmentsLoaded] = useState(false);
+  const [folderName, setFolderName] = useState('');
+  const [originalFolderName, setOriginalFolderName] = useState('');
+  const { toast } = useToast();
 
   const fetchFiles = async (retryCount = 0) => {
     try {
@@ -186,9 +193,35 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
     }
   };
 
+  const openAssignDialog = (fileName: string) => {
+    setSelectedFileName(fileName);
+    const assignment = assignments.find(a => a.folder_name === fileName);
+    if (assignment) {
+      setAssigneeEmail(assignment.assignee_email);
+      setAssigneeName(assignment.assignee_name);
+    } else {
+      setAssigneeEmail('');
+      setAssigneeName('');
+    }
+    // Set folder name for editing
+    const displayName = getDisplayName(fileName);
+    setFolderName(displayName);
+    setOriginalFolderName(displayName);
+    setShowAssignDialog(true);
+  };
+
   const handleAssignFolder = async () => {
     if (!assigneeEmail || !assigneeName) {
       setError('Please provide both email and name for the assignee.');
+      return;
+    }
+
+    if (!folderName.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Folder name cannot be empty",
+      });
       return;
     }
 
@@ -196,13 +229,34 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
     setError(null);
     
     try {
+      let finalFileName = selectedFileName;
+      
+      // Check if folder name changed
+      if (folderName.trim() !== originalFolderName) {
+        // Extract timestamp from original filename
+        const timestampMatch = selectedFileName.match(/^teacher-vetting-(\d+)-/);
+        const timestamp = timestampMatch ? timestampMatch[1] : Date.now().toString();
+        
+        // Create new filename with same timestamp but new name
+        const newFileName = `teacher-vetting-${timestamp}-${folderName.trim()}.csv`;
+        
+        // Rename the file and update database references
+        await renameTeacherVettingFile(selectedFileName, newFileName);
+        finalFileName = newFileName;
+        
+        toast({
+          description: "Folder name updated successfully! 🎉",
+        });
+      }
+      
+      // Update or create assignment with the final filename
       await assignTeacherVettingFolder({
-        folderName: selectedFileName,
+        folderName: finalFileName,
         assigneeEmail,
         assigneeName
       });
       
-      // Refresh the assignments
+      // Refresh the assignments and files
       await fetchFiles();
       
       setSuccessMessage(`Folder assigned to ${assigneeName} successfully.`);
@@ -213,12 +267,18 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
       setSelectedFileName('');
       setAssigneeEmail('');
       setAssigneeName('');
+      setFolderName('');
+      setOriginalFolderName('');
     } catch (err) {
-      console.error('Error assigning folder:', err);
+      console.error('Error processing assignment:', err);
       if (err instanceof Error && err.message.includes('does not exist')) {
         setError('Assignment table not found. Please run the teacher-vetting-assignments-schema.sql in your Supabase dashboard first.');
       } else {
-        setError('Failed to assign folder. Please try again.');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: err instanceof Error ? err.message : 'Failed to process assignment',
+        });
       }
     } finally {
       setAssignLoading(false);
@@ -247,19 +307,6 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
     } finally {
       setDeleteLoading(null);
     }
-  };
-
-  const openAssignDialog = (fileName: string) => {
-    setSelectedFileName(fileName);
-    const assignment = assignments.find(a => a.folder_name === fileName);
-    if (assignment) {
-      setAssigneeEmail(assignment.assignee_email);
-      setAssigneeName(assignment.assignee_name);
-    } else {
-      setAssigneeEmail('');
-      setAssigneeName('');
-    }
-    setShowAssignDialog(true);
   };
 
   const getAssignmentForFile = (fileName: string) => {
@@ -476,9 +523,26 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label>Folder</Label>
-              <div className="p-2 bg-gray-50 rounded text-sm">
-                {getDisplayName(selectedFileName)}
+              <Label htmlFor="folder-name">Folder Name *</Label>
+              <Input
+                id="folder-name"
+                value={folderName}
+                onChange={(e) => setFolderName(e.target.value)}
+                placeholder="Enter folder name"
+                className={cn(
+                  "text-sm",
+                  folderName.trim() !== originalFolderName && folderName.trim() !== '' 
+                    ? "border-blue-500 ring-1 ring-blue-200" 
+                    : ""
+                )}
+              />
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-gray-500">Edit the display name for this folder</p>
+                {folderName.trim() !== originalFolderName && folderName.trim() !== '' && (
+                  <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+                    Modified
+                  </Badge>
+                )}
               </div>
             </div>
             
@@ -514,12 +578,12 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
             </Button>
             <Button 
               onClick={handleAssignFolder}
-              disabled={assignLoading || !assigneeEmail || !assigneeName}
+              disabled={assignLoading || !assigneeEmail || !assigneeName || !folderName.trim()}
             >
               {assignLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Assigning...
+                  {folderName.trim() !== originalFolderName ? 'Updating...' : 'Assigning...'}
                 </>
               ) : (
                 getAssignmentForFile(selectedFileName) ? 'Update Assignment' : 'Assign Folder'

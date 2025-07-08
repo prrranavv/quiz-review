@@ -777,4 +777,67 @@ export const deleteTeacherVettingFolder = async (folderName: string) => {
     }
     throw new Error('Failed to delete folder: Unknown error occurred')
   }
+}
+
+// Rename teacher vetting file (copy and delete original, update database references)
+export const renameTeacherVettingFile = async (oldFileName: string, newFileName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    // First, copy the file to the new name
+    const { data: copyData, error: copyError } = await supabase.storage
+      .from(TEACHER_VETTING_STORAGE_BUCKET)
+      .copy(oldFileName, newFileName)
+    
+    if (copyError) {
+      throw new Error(`Copy failed: ${copyError.message}`)
+    }
+    
+    // Update all feedback records to use the new folder name
+    const { error: feedbackError } = await supabase
+      .from('teacher_vetting_feedback')
+      .update({ folder_name: newFileName })
+      .eq('folder_name', oldFileName)
+    
+    if (feedbackError) {
+      // If feedback update fails, try to clean up the copied file
+      await supabase.storage.from(TEACHER_VETTING_STORAGE_BUCKET).remove([newFileName])
+      throw new Error(`Failed to update feedback records: ${feedbackError.message}`)
+    }
+    
+    // Update assignment record to use the new folder name
+    const { error: assignmentError } = await supabase
+      .from('teacher_vetting_assignments')
+      .update({ folder_name: newFileName })
+      .eq('folder_name', oldFileName)
+    
+    if (assignmentError) {
+      // If assignment update fails, try to revert feedback and clean up
+      await supabase.from('teacher_vetting_feedback').update({ folder_name: oldFileName }).eq('folder_name', newFileName)
+      await supabase.storage.from(TEACHER_VETTING_STORAGE_BUCKET).remove([newFileName])
+      throw new Error(`Failed to update assignment record: ${assignmentError.message}`)
+    }
+    
+    // Delete the original file
+    const { error: deleteError } = await supabase.storage
+      .from(TEACHER_VETTING_STORAGE_BUCKET)
+      .remove([oldFileName])
+    
+    if (deleteError) {
+      // If delete fails, try to revert everything
+      await supabase.from('teacher_vetting_feedback').update({ folder_name: oldFileName }).eq('folder_name', newFileName)
+      await supabase.from('teacher_vetting_assignments').update({ folder_name: oldFileName }).eq('folder_name', newFileName)
+      await supabase.storage.from(TEACHER_VETTING_STORAGE_BUCKET).remove([newFileName])
+      throw new Error(`Delete original failed: ${deleteError.message}`)
+    }
+    
+    return copyData
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Rename failed: Unknown error occurred')
+  }
 } 
