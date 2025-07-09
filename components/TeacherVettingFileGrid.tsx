@@ -32,7 +32,8 @@ import {
   User,
   Mail,
   Check,
-  X
+  X,
+  Search
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -79,6 +80,7 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
   const [originalFolderName, setOriginalFolderName] = useState('');
   const [selectedFolderAssignments, setSelectedFolderAssignments] = useState<Assignment[]>([]);
   const [removeLoading, setRemoveLoading] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
   const fetchFiles = async (retryCount = 0) => {
@@ -359,6 +361,47 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
     return assignments.filter(a => a.folder_name === fileName);
   };
 
+  // Fuzzy search function
+  const fuzzyMatch = (searchTerm: string, text: string): boolean => {
+    if (!searchTerm) return true;
+    
+    const search = searchTerm.toLowerCase().replace(/\s+/g, '');
+    const target = text.toLowerCase().replace(/\s+/g, '');
+    
+    // Exact match
+    if (target.includes(searchTerm.toLowerCase())) return true;
+    
+    // Fuzzy matching - check if all characters in search appear in order in target
+    let searchIndex = 0;
+    for (let i = 0; i < target.length && searchIndex < search.length; i++) {
+      if (target[i] === search[searchIndex]) {
+        searchIndex++;
+      }
+    }
+    return searchIndex === search.length;
+  };
+
+  // Filter files based on search term
+  const filteredFiles = files.filter(file => {
+    if (!searchTerm) return true;
+    
+    const displayName = getDisplayName(file.name);
+    const fileAssignments = getAssignmentsForFile(file.name);
+    
+    // Search in folder name
+    if (fuzzyMatch(searchTerm, displayName)) return true;
+    
+    // Search in assignee names and emails
+    for (const assignment of fileAssignments) {
+      if (fuzzyMatch(searchTerm, assignment.assignee_name) || 
+          fuzzyMatch(searchTerm, assignment.assignee_email)) {
+        return true;
+      }
+    }
+    
+    return false;
+  });
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-20">
@@ -374,6 +417,33 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
         <p className="text-muted-foreground">
           Select a previously uploaded teacher vetting file or upload a new one.
         </p>
+      </div>
+
+      {/* Search Bar */}
+      <div className="max-w-md mx-auto">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            type="text"
+            placeholder="Search folders, author names, emails..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {searchTerm && (
+          <p className="text-sm text-muted-foreground mt-2 text-center">
+            {filteredFiles.length} of {files.length} folders match "{searchTerm}"
+          </p>
+        )}
       </div>
       
       {error && (
@@ -443,9 +513,12 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
       {/* Files Grid */}
       {files.length > 0 ? (
         <div className="space-y-4">
-          <h3 className="text-xl font-semibold">Your Teacher Vetting Files</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {files.map((file) => {
+          <h3 className="text-xl font-semibold">
+            {searchTerm ? `Search Results (${filteredFiles.length})` : 'Your Teacher Vetting Files'}
+          </h3>
+          {filteredFiles.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredFiles.map((file) => {
               const fileAssignments = getAssignmentsForFile(file.name);
               return (
                 <Card
@@ -546,7 +619,24 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
                 </Card>
               );
             })}
-          </div>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">No folders found</h3>
+              <p className="text-sm text-muted-foreground">
+                No folders match "{searchTerm}". Try searching for a different term.
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSearchTerm('')}
+                className="mt-4"
+              >
+                Clear search
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-12">

@@ -7,8 +7,23 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
     // Only use domain/topic if they have actual values
     const domain = quiz.domain?.trim() || null;
     const topic = quiz.topic?.trim() || null;  
-    const standard = quiz.standard?.trim() || 'Uncategorized';
+    const standard = quiz.standard?.trim() || null;
     const varietyTag = quiz.variety_tag?.trim() || 'General';
+    
+    // Determine the review level based on available data
+    let reviewLevel: 'domain' | 'topic' | 'standard' = 'standard';
+    let reviewName = 'Uncategorized';
+    
+    if (domain && !topic && !standard) {
+      reviewLevel = 'domain';
+      reviewName = 'Domain Review';
+    } else if (domain && topic && !standard) {
+      reviewLevel = 'topic';
+      reviewName = 'Topic Review';
+    } else if (standard) {
+      reviewLevel = 'standard';
+      reviewName = standard;
+    }
     
     // Build hierarchy key based on available data
     let hierarchyKey = '';
@@ -59,20 +74,20 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
       }
     }
     
-    // Level 3: Standard (always exists)
+    // Level 3: Standard/Review (always exists)
     hierarchyKey = topic 
-      ? (domain ? `domain:${domain}|topic:${topic}|standard:${standard}` : `topic:${topic}|standard:${standard}`)
-      : (domain ? `domain:${domain}|standard:${standard}` : `standard:${standard}`);
+      ? (domain ? `domain:${domain}|topic:${topic}|standard:${reviewName}` : `topic:${topic}|standard:${reviewName}`)
+      : (domain ? `domain:${domain}|standard:${reviewName}` : `standard:${reviewName}`);
     
     const parentForStandard = topicNode || domainNode;
     const parentMap = parentForStandard ? parentForStandard.children : Array.from(domainMap.values());
-    standardNode = parentMap.find(child => child.type === 'standard' && child.name === standard) as TreeNode;
+    standardNode = parentMap.find(child => child.type === reviewLevel && child.name === reviewName) as TreeNode;
     
     if (!standardNode) {
       standardNode = {
         id: hierarchyKey,
-        name: standard,
-        type: 'standard',
+        name: reviewName,
+        type: reviewLevel,
         children: [],
         isExpanded: false,
         description: quiz.description
@@ -92,8 +107,8 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
     }
     
     hierarchyKey = topic 
-      ? (domain ? `domain:${domain}|topic:${topic}|standard:${standard}|variety:${varietyTag}` : `topic:${topic}|standard:${standard}|variety:${varietyTag}`)
-      : (domain ? `domain:${domain}|standard:${standard}|variety:${varietyTag}` : `standard:${standard}|variety:${varietyTag}`);
+      ? (domain ? `domain:${domain}|topic:${topic}|standard:${reviewName}|variety:${varietyTag}` : `topic:${topic}|standard:${reviewName}|variety:${varietyTag}`)
+      : (domain ? `domain:${domain}|standard:${reviewName}|variety:${varietyTag}` : `standard:${reviewName}|variety:${varietyTag}`);
     
     varietyNode = standardNode.children.find(child => child.type === 'variety' && child.name === varietyTag) as TreeNode;
     
@@ -136,7 +151,19 @@ export function buildTreeFromQuizzes(quizzes: QuizSummary[]): TreeNode[] {
         }
         return a.name.localeCompare(b.name);
       }
-      // For non-quiz nodes, sort alphabetically
+      
+      // For non-quiz nodes, prioritize review nodes at the top
+      const isAReview = a.name === 'Domain Review' || a.name === 'Topic Review';
+      const isBReview = b.name === 'Domain Review' || b.name === 'Topic Review';
+      
+      if (isAReview && !isBReview) {
+        return -1; // A (review) comes before B (non-review)
+      }
+      if (!isAReview && isBReview) {
+        return 1; // B (review) comes before A (non-review)
+      }
+      
+      // Both are reviews or both are non-reviews, sort alphabetically
       return a.name.localeCompare(b.name);
     });
     
