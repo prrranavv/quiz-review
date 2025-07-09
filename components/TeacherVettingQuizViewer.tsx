@@ -114,7 +114,18 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
     await loadReviewedQuizzes();
   };
 
+  // Check if there's detailed feedback (excluding approval status)
   const hasDetailedFeedback = (feedback: any) => {
+    return feedback && (
+      feedback.usability || 
+      feedback.standards_alignment || 
+      feedback.jtbd || 
+      feedback.feedback
+    );
+  };
+
+  // Check if there's any feedback including approval status (for display purposes)
+  const hasAnyFeedback = (feedback: any) => {
     return feedback && (
       feedback.usability || 
       feedback.standards_alignment || 
@@ -406,7 +417,7 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
                 {/* Give Feedback Button */}
                 <Button onClick={handleToggleFeedback}>
                   <MessageSquare className="h-4 w-4 mr-2" />
-                  {existingFeedback && hasDetailedFeedback(existingFeedback) ? 'Show Feedback' : 'Share feedback'}
+                  {existingFeedback && hasAnyFeedback(existingFeedback) ? 'Show Feedback' : 'Share feedback'}
                 </Button>
 
                 {/* Open in New Tab */}

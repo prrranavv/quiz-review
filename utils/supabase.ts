@@ -469,19 +469,13 @@ export const saveTeacherVettingFeedback = async (feedback: {
       score: feedback.score || null,
     };
 
-    // First, try to find existing record with the same context
+    // First, try to find existing record with the same folder_name and quiz_id
+    // This matches the unique constraint in the database
     const { data: existingData, error: selectError } = await supabase
       .from('teacher_vetting_feedback')
       .select('id')
       .eq('folder_name', feedbackData.folder_name)
       .eq('quiz_id', feedbackData.quiz_id)
-      .eq('state', feedbackData.state || '')
-      .eq('subject', feedbackData.subject || '')
-      .eq('grade', feedbackData.grade || '')
-      .eq('domain', feedbackData.domain || '')
-      .eq('topic', feedbackData.topic || '')
-      .eq('instructure_code', feedbackData.instructure_code || '')
-      .eq('display_standard_code', feedbackData.display_standard_code || '')
       .maybeSingle();
 
     if (selectError) {
