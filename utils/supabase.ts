@@ -596,24 +596,56 @@ export const assignTeacherVettingFolder = async (assignment: {
   }
   
   try {
-    const { data, error } = await supabase
+    // Check if this exact assignment already exists
+    const { data: existingAssignment, error: checkError } = await supabase
       .from('teacher_vetting_assignments')
-      .upsert({
-        folder_name: assignment.folderName,
-        assignee_email: assignment.assigneeEmail,
-        assignee_name: assignment.assigneeName,
-        assigned_by: assignment.assignedBy || null,
-        notes: assignment.notes || null,
-        status: 'assigned'
-      }, {
-        onConflict: 'folder_name'
-      })
+      .select('id')
+      .eq('folder_name', assignment.folderName)
+      .eq('assignee_email', assignment.assigneeEmail)
+      .maybeSingle()
     
-    if (error) {
-      throw new Error(`Failed to assign folder: ${error.message}`)
+    if (checkError) {
+      throw new Error(`Failed to check existing assignment: ${checkError.message}`)
     }
     
-    return data
+    if (existingAssignment) {
+      // Update existing assignment
+      const { data, error } = await supabase
+        .from('teacher_vetting_assignments')
+        .update({
+          assignee_name: assignment.assigneeName,
+          assigned_by: assignment.assignedBy || null,
+          notes: assignment.notes || null,
+          status: 'assigned'
+        })
+        .eq('id', existingAssignment.id)
+        .select()
+      
+      if (error) {
+        throw new Error(`Failed to update assignment: ${error.message}`)
+      }
+      
+      return data
+    } else {
+      // Create new assignment
+      const { data, error } = await supabase
+        .from('teacher_vetting_assignments')
+        .insert({
+          folder_name: assignment.folderName,
+          assignee_email: assignment.assigneeEmail,
+          assignee_name: assignment.assigneeName,
+          assigned_by: assignment.assignedBy || null,
+          notes: assignment.notes || null,
+          status: 'assigned'
+        })
+        .select()
+      
+      if (error) {
+        throw new Error(`Failed to assign folder: ${error.message}`)
+      }
+      
+      return data
+    }
   } catch (err) {
     if (err instanceof Error) {
       throw err
@@ -644,6 +676,83 @@ export const getTeacherVettingAssignment = async (folderName: string) => {
       throw err
     }
     throw new Error('Failed to fetch assignment: Unknown error occurred')
+  }
+}
+
+// Get all assignments for a specific folder (supports multiple assignees)
+export const getTeacherVettingAssignmentsForFolder = async (folderName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .select('*')
+      .eq('folder_name', folderName)
+      .order('assigned_at', { ascending: false })
+    
+    if (error) {
+      throw new Error(`Failed to fetch assignments: ${error.message}`)
+    }
+    
+    return data || []
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to fetch assignments: Unknown error occurred')
+  }
+}
+
+// Remove a specific assignment by ID
+export const removeTeacherVettingAssignment = async (assignmentId: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .delete()
+      .eq('id', assignmentId)
+    
+    if (error) {
+      throw new Error(`Failed to remove assignment: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to remove assignment: Unknown error occurred')
+  }
+}
+
+// Remove a specific assignment by folder and email
+export const removeTeacherVettingAssignmentByEmail = async (folderName: string, assigneeEmail: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .delete()
+      .eq('folder_name', folderName)
+      .eq('assignee_email', assigneeEmail)
+    
+    if (error) {
+      throw new Error(`Failed to remove assignment: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to remove assignment: Unknown error occurred')
   }
 }
 
@@ -729,6 +838,31 @@ export const deleteTeacherVettingAssignment = async (folderName: string) => {
   }
 }
 
+// Delete all assignments for a folder (used when deleting a folder)
+export const deleteAllTeacherVettingAssignments = async (folderName: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
+      .delete()
+      .eq('folder_name', folderName)
+    
+    if (error) {
+      throw new Error(`Failed to delete assignments: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to delete assignments: Unknown error occurred')
+  }
+}
+
 export const deleteTeacherVettingFolder = async (folderName: string) => {
   if (!hasValidCredentials) {
     throw new Error('Supabase is not configured. Please check your environment variables.')
@@ -745,15 +879,8 @@ export const deleteTeacherVettingFolder = async (folderName: string) => {
       throw new Error(`Failed to delete feedback: ${feedbackError.message}`)
     }
     
-    // Delete assignment for this folder
-    const { error: assignmentError } = await supabase
-      .from('teacher_vetting_assignments')
-      .delete()
-      .eq('folder_name', folderName)
-    
-    if (assignmentError) {
-      throw new Error(`Failed to delete assignment: ${assignmentError.message}`)
-    }
+    // Delete all assignments for this folder
+    await deleteAllTeacherVettingAssignments(folderName)
     
     // Delete the actual file from storage
     const { error: storageError } = await supabase.storage

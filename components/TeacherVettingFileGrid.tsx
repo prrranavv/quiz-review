@@ -8,6 +8,8 @@ import {
   getTeacherVettingAssignment,
   deleteTeacherVettingFolder,
   getAllTeacherVettingAssignments,
+  getTeacherVettingAssignmentsForFolder,
+  removeTeacherVettingAssignmentByEmail,
   renameTeacherVettingFile
 } from '../utils/supabase';
 import { Button } from '@/components/ui/button';
@@ -75,6 +77,8 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
   const [assignmentsLoaded, setAssignmentsLoaded] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [originalFolderName, setOriginalFolderName] = useState('');
+  const [selectedFolderAssignments, setSelectedFolderAssignments] = useState<Assignment[]>([]);
+  const [removeLoading, setRemoveLoading] = useState<string | null>(null);
   const { toast } = useToast();
 
   const fetchFiles = async (retryCount = 0) => {
@@ -193,16 +197,22 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
     }
   };
 
-  const openAssignDialog = (fileName: string) => {
+  const openAssignDialog = async (fileName: string) => {
     setSelectedFileName(fileName);
-    const assignment = assignments.find(a => a.folder_name === fileName);
-    if (assignment) {
-      setAssigneeEmail(assignment.assignee_email);
-      setAssigneeName(assignment.assignee_name);
-    } else {
-      setAssigneeEmail('');
-      setAssigneeName('');
+    
+    // Fetch assignments for this specific folder
+    try {
+      const folderAssignments = await getTeacherVettingAssignmentsForFolder(fileName);
+      setSelectedFolderAssignments(folderAssignments);
+    } catch (err) {
+      console.error('Error fetching folder assignments:', err);
+      setSelectedFolderAssignments([]);
     }
+    
+    // Clear form fields
+    setAssigneeEmail('');
+    setAssigneeName('');
+    
     // Set folder name for editing
     const displayName = getDisplayName(fileName);
     setFolderName(displayName);
@@ -249,7 +259,7 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
         });
       }
       
-      // Update or create assignment with the final filename
+      // Create assignment with the final filename
       await assignTeacherVettingFolder({
         folderName: finalFileName,
         assigneeEmail,
@@ -259,16 +269,18 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
       // Refresh the assignments and files
       await fetchFiles();
       
-      setSuccessMessage(`Folder assigned to ${assigneeName} successfully.`);
-      setTimeout(() => setSuccessMessage(null), 3000);
+      // Refresh the folder assignments
+      const folderAssignments = await getTeacherVettingAssignmentsForFolder(finalFileName);
+      setSelectedFolderAssignments(folderAssignments);
       
-      // Reset form
-      setShowAssignDialog(false);
-      setSelectedFileName('');
+      toast({
+        description: `Folder assigned to ${assigneeName} successfully! 🎉`,
+      });
+      
+      // Reset form fields but keep dialog open
       setAssigneeEmail('');
       setAssigneeName('');
-      setFolderName('');
-      setOriginalFolderName('');
+      
     } catch (err) {
       console.error('Error processing assignment:', err);
       if (err instanceof Error && err.message.includes('does not exist')) {
@@ -282,6 +294,36 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
       }
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const handleRemoveAssignee = async (assigneeEmail: string) => {
+    setRemoveLoading(assigneeEmail);
+    setError(null);
+    
+    try {
+      await removeTeacherVettingAssignmentByEmail(selectedFileName, assigneeEmail);
+      
+      // Refresh the assignments and files
+      await fetchFiles();
+      
+      // Refresh the folder assignments
+      const folderAssignments = await getTeacherVettingAssignmentsForFolder(selectedFileName);
+      setSelectedFolderAssignments(folderAssignments);
+      
+      toast({
+        description: "Assignee removed successfully! 🎉",
+      });
+      
+    } catch (err) {
+      console.error('Error removing assignee:', err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to remove assignee',
+      });
+    } finally {
+      setRemoveLoading(null);
     }
   };
 
@@ -311,6 +353,10 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
 
   const getAssignmentForFile = (fileName: string) => {
     return assignments.find(a => a.folder_name === fileName);
+  };
+
+  const getAssignmentsForFile = (fileName: string) => {
+    return assignments.filter(a => a.folder_name === fileName);
   };
 
   if (loading) {
@@ -400,7 +446,7 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
           <h3 className="text-xl font-semibold">Your Teacher Vetting Files</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {files.map((file) => {
-              const assignment = getAssignmentForFile(file.name);
+              const fileAssignments = getAssignmentsForFile(file.name);
               return (
                 <Card
                   key={file.name}
@@ -428,9 +474,9 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
                               openAssignDialog(file.name);
                             }}
                             className="h-8 w-8 p-0"
-                            title={assignment ? 'Edit assignment' : 'Assign folder'}
+                            title={fileAssignments.length > 0 ? 'Manage assignments' : 'Assign folder'}
                           >
-                            {assignment ? <Edit className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
+                            {fileAssignments.length > 0 ? <Edit className="h-3 w-3" /> : <UserPlus className="h-3 w-3" />}
                           </Button>
                         ) : null}
                         <Button
@@ -462,18 +508,27 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
                       </div>
                       
                       {assignmentsLoaded ? (
-                        assignment ? (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-xs">
-                              <User className="h-3 w-3 text-blue-600" />
-                              <span className="font-medium text-blue-700">{assignment.assignee_name}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Mail className="h-3 w-3" />
-                              <span>{assignment.assignee_email}</span>
-                            </div>
+                        fileAssignments.length > 0 ? (
+                          <div className="space-y-2">
+                            {fileAssignments.slice(0, 2).map((assignment) => (
+                              <div key={assignment.id} className="space-y-1">
+                                <div className="flex items-center gap-2 text-xs">
+                                  <User className="h-3 w-3 text-blue-600" />
+                                  <span className="font-medium text-blue-700">{assignment.assignee_name}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Mail className="h-3 w-3" />
+                                  <span>{assignment.assignee_email}</span>
+                                </div>
+                              </div>
+                            ))}
+                            {fileAssignments.length > 2 && (
+                              <div className="text-xs text-muted-foreground">
+                                +{fileAssignments.length - 2} more
+                              </div>
+                            )}
                             <Badge variant="outline" className="text-xs">
-                              Assigned
+                              {fileAssignments.length} Assigned
                             </Badge>
                           </div>
                         ) : (
@@ -515,10 +570,10 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
 
       {/* Assignment Dialog */}
       <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {getAssignmentForFile(selectedFileName) ? 'Edit Assignment' : 'Assign Folder'}
+              Manage Folder Assignments
             </DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -545,49 +600,85 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
                 )}
               </div>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="assignee-name">Assignee Name *</Label>
-              <Input
-                id="assignee-name"
-                value={assigneeName}
-                onChange={(e) => setAssigneeName(e.target.value)}
-                placeholder="Enter assignee's full name"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="assignee-email">Assignee Email *</Label>
-              <Input
-                id="assignee-email"
-                type="email"
-                value={assigneeEmail}
-                onChange={(e) => setAssigneeEmail(e.target.value)}
-                placeholder="Enter assignee's email address"
-              />
+
+            {/* Current Assignments */}
+            {selectedFolderAssignments.length > 0 && (
+              <div className="space-y-2">
+                <Label>Current Assignments</Label>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {selectedFolderAssignments.map((assignment) => (
+                    <div key={assignment.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                      <div>
+                        <div className="text-sm font-medium">{assignment.assignee_name}</div>
+                        <div className="text-xs text-gray-500">{assignment.assignee_email}</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveAssignee(assignment.assignee_email)}
+                        disabled={removeLoading === assignment.assignee_email}
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        title="Remove assignee"
+                      >
+                        {removeLoading === assignment.assignee_email ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <X className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add New Assignee */}
+            <div className="space-y-3 border-t pt-3">
+              <Label>Add New Assignee</Label>
+              <div className="space-y-2">
+                <Input
+                  value={assigneeName}
+                  onChange={(e) => setAssigneeName(e.target.value)}
+                  placeholder="Enter assignee's full name"
+                />
+                <Input
+                  type="email"
+                  value={assigneeEmail}
+                  onChange={(e) => setAssigneeEmail(e.target.value)}
+                  placeholder="Enter assignee's email address"
+                />
+              </div>
+              <Button 
+                onClick={handleAssignFolder}
+                disabled={assignLoading || !assigneeEmail || !assigneeName || !folderName.trim()}
+                className="w-full"
+              >
+                {assignLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Assignee'
+                )}
+              </Button>
             </div>
           </div>
           
           <div className="flex justify-end gap-2">
             <Button 
               variant="outline" 
-              onClick={() => setShowAssignDialog(false)}
+              onClick={() => {
+                setShowAssignDialog(false);
+                setSelectedFolderAssignments([]);
+                setAssigneeEmail('');
+                setAssigneeName('');
+                setFolderName('');
+                setOriginalFolderName('');
+              }}
               disabled={assignLoading}
             >
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleAssignFolder}
-              disabled={assignLoading || !assigneeEmail || !assigneeName || !folderName.trim()}
-            >
-              {assignLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  {folderName.trim() !== originalFolderName ? 'Updating...' : 'Assigning...'}
-                </>
-              ) : (
-                getAssignmentForFile(selectedFileName) ? 'Update Assignment' : 'Assign Folder'
-              )}
+              Done
             </Button>
           </div>
         </DialogContent>
