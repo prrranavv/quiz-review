@@ -543,6 +543,32 @@ export const getTeacherVettingFeedbackForQuizzes = async (folderName: string, qu
   }
 }
 
+export const getSpecificTeacherVettingFeedback = async (folderName: string, quizId: string) => {
+  if (!hasValidCredentials) {
+    throw new Error('Supabase is not configured. Please check your environment variables.')
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('teacher_vetting_feedback')
+      .select('*')
+      .eq('folder_name', folderName)
+      .eq('quiz_id', quizId)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+      throw new Error(`Failed to fetch teacher vetting feedback: ${error.message}`)
+    }
+    
+    return data
+  } catch (err) {
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Failed to fetch teacher vetting feedback: Unknown error occurred')
+  }
+}
+
 export const getAllTeacherVettingFeedback = async () => {
   if (!hasValidCredentials) {
     throw new Error('Supabase is not configured. Please check your environment variables.')

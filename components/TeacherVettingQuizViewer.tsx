@@ -3,7 +3,7 @@ import { QuizSummary, TreeNode } from '../types';
 import TreeView from './TreeView';
 import TeacherVettingInlineFeedback from '@/components/TeacherVettingInlineFeedback';
 import { buildTreeFromQuizzes } from '../utils/treeBuilder';
-import { saveTeacherVettingFeedback, getTeacherVettingFeedbackForQuizzes, renameTeacherVettingFile } from '../utils/supabase';
+import { saveTeacherVettingFeedback, getTeacherVettingFeedbackForQuizzes, getSpecificTeacherVettingFeedback, renameTeacherVettingFile } from '../utils/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -40,7 +40,7 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
       setTreeNodes(tree);
       loadReviewedQuizzes();
     }
-  }, [quizzes]);
+  }, [quizzes, folderName]);
 
   // Load reviewed quizzes status
   const loadReviewedQuizzes = async () => {
@@ -68,8 +68,7 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
     if (!selectedQuiz) return;
     
     try {
-      const feedbackData = await getTeacherVettingFeedbackForQuizzes(folderName, [selectedQuiz.id]);
-      const feedback = feedbackData.find(f => f.quiz_id === selectedQuiz.id);
+      const feedback = await getSpecificTeacherVettingFeedback(folderName, selectedQuiz.id);
       setExistingFeedback(feedback || null);
       setIsViewMode(false);
     } catch (error) {

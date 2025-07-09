@@ -36,7 +36,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
       setTreeNodes(tree);
       loadReviewedQuizzes();
     }
-  }, [quizzes]);
+  }, [quizzes, folderName]);
 
   // Load reviewed quizzes status
   const loadReviewedQuizzes = async () => {

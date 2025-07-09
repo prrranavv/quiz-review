@@ -125,7 +125,7 @@ export default function TeacherVettingResources() {
       <TeacherVettingQuizViewer 
         quizzes={quizzes} 
         onBack={handleBackToHome} 
-        folderName={fileName || slugify(fileName || '')} 
+        folderName={fileName ? getDisplayName(fileName) : ''} 
         onFolderNameChange={handleFolderNameChange}
       />
     </>
