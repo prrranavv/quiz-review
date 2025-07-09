@@ -210,8 +210,8 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
     }
     
     // Clear form fields
-    setAssigneeEmail('');
-    setAssigneeName('');
+      setAssigneeEmail('');
+      setAssigneeName('');
     
     // Set folder name for editing
     const displayName = getDisplayName(fileName);
@@ -512,14 +512,14 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
                           <div className="space-y-2">
                             {fileAssignments.slice(0, 2).map((assignment) => (
                               <div key={assignment.id} className="space-y-1">
-                                <div className="flex items-center gap-2 text-xs">
-                                  <User className="h-3 w-3 text-blue-600" />
-                                  <span className="font-medium text-blue-700">{assignment.assignee_name}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                  <Mail className="h-3 w-3" />
-                                  <span>{assignment.assignee_email}</span>
-                                </div>
+                            <div className="flex items-center gap-2 text-xs">
+                              <User className="h-3 w-3 text-blue-600" />
+                              <span className="font-medium text-blue-700">{assignment.assignee_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Mail className="h-3 w-3" />
+                              <span>{assignment.assignee_email}</span>
+                            </div>
                               </div>
                             ))}
                             {fileAssignments.length > 2 && (
@@ -600,7 +600,7 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
                 )}
               </div>
             </div>
-
+            
             {/* Current Assignments */}
             {selectedFolderAssignments.length > 0 && (
               <div className="space-y-2">
@@ -635,18 +635,18 @@ const TeacherVettingFileGrid: React.FC<TeacherVettingFileGridProps> = ({ onFileS
             {/* Add New Assignee */}
             <div className="space-y-3 border-t pt-3">
               <Label>Add New Assignee</Label>
-              <div className="space-y-2">
-                <Input
-                  value={assigneeName}
-                  onChange={(e) => setAssigneeName(e.target.value)}
-                  placeholder="Enter assignee's full name"
-                />
-                <Input
-                  type="email"
-                  value={assigneeEmail}
-                  onChange={(e) => setAssigneeEmail(e.target.value)}
-                  placeholder="Enter assignee's email address"
-                />
+            <div className="space-y-2">
+              <Input
+                value={assigneeName}
+                onChange={(e) => setAssigneeName(e.target.value)}
+                placeholder="Enter assignee's full name"
+              />
+              <Input
+                type="email"
+                value={assigneeEmail}
+                onChange={(e) => setAssigneeEmail(e.target.value)}
+                placeholder="Enter assignee's email address"
+              />
               </div>
               <Button 
                 onClick={handleAssignFolder}

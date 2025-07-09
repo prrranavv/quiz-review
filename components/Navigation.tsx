@@ -1,8 +1,12 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/router';
 
 const Navigation: React.FC = () => {
+  const router = useRouter();
+  const isTeacherVettingPage = router.pathname === '/teacher-vetting';
+
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -21,10 +25,10 @@ const Navigation: React.FC = () => {
           
           <div className="flex items-center space-x-4">
             <Link 
-              href="/analytics" 
+              href={isTeacherVettingPage ? "/teacher-feedback" : "/analytics"}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
             >
-              Analytics
+              {isTeacherVettingPage ? "Feedback" : "Analytics"}
             </Link>
           </div>
         </div>

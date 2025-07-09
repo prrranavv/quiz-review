@@ -610,8 +610,8 @@ export const assignTeacherVettingFolder = async (assignment: {
     
     if (existingAssignment) {
       // Update existing assignment
-      const { data, error } = await supabase
-        .from('teacher_vetting_assignments')
+    const { data, error } = await supabase
+      .from('teacher_vetting_assignments')
         .update({
           assignee_name: assignment.assigneeName,
           assigned_by: assignment.assignedBy || null,
@@ -631,20 +631,20 @@ export const assignTeacherVettingFolder = async (assignment: {
       const { data, error } = await supabase
         .from('teacher_vetting_assignments')
         .insert({
-          folder_name: assignment.folderName,
-          assignee_email: assignment.assigneeEmail,
-          assignee_name: assignment.assigneeName,
-          assigned_by: assignment.assignedBy || null,
-          notes: assignment.notes || null,
-          status: 'assigned'
-        })
+        folder_name: assignment.folderName,
+        assignee_email: assignment.assigneeEmail,
+        assignee_name: assignment.assigneeName,
+        assigned_by: assignment.assignedBy || null,
+        notes: assignment.notes || null,
+        status: 'assigned'
+      })
         .select()
-      
-      if (error) {
-        throw new Error(`Failed to assign folder: ${error.message}`)
-      }
-      
-      return data
+    
+    if (error) {
+      throw new Error(`Failed to assign folder: ${error.message}`)
+    }
+    
+    return data
     }
   } catch (err) {
     if (err instanceof Error) {
