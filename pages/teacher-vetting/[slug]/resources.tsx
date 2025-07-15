@@ -69,7 +69,7 @@ export default function TeacherVettingResources() {
   useEffect(() => {
     if (!slug) return;
     const savedQuizzes = safeGetFromLocalStorage<QuizSummary[]>(`teacherVettingQuizData:${slug}`, []);
-    const savedFileName = safeGetFromLocalStorage<string>(`teacherVettingFileName:${slug}`, slug);
+    const savedFileName = safeGetFromLocalStorage<string>(`teacherVettingFileName:${slug}`, '');
 
     if (savedQuizzes.length > 0) {
       setQuizzes(savedQuizzes);

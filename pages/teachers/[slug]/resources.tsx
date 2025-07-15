@@ -25,7 +25,7 @@ const TeacherResources = () => {
         
         // Get data from localStorage using the same format as teacher vetting
         const savedQuizzes = safeGetFromLocalStorage(`teacherVettingQuizData:${slug}`, []);
-        const savedFileName = safeGetFromLocalStorage(`teacherVettingFileName:${slug}`, slug);
+        const savedFileName = safeGetFromLocalStorage(`teacherVettingFileName:${slug}`, '');
         
         if (savedQuizzes.length > 0) {
           setQuizSummaries(savedQuizzes);

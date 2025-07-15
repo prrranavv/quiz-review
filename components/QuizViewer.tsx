@@ -19,10 +19,12 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
   const [selectedQuiz, setSelectedQuiz] = useState<QuizSummary | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
+  const [reviewedTreeNodes, setReviewedTreeNodes] = useState<TreeNode[]>([]);
   const [showInlineFeedback, setShowInlineFeedback] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState<'thumbsUp' | 'thumbsDown' | null>(null);
   const [existingFeedback, setExistingFeedback] = useState<any>(null);
   const [reviewedQuizzes, setReviewedQuizzes] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'to-review' | 'reviewed'>('to-review');
   const [isViewMode, setIsViewMode] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(33); // percentage
@@ -33,11 +35,26 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
   useEffect(() => {
     console.log('🔍 [QuizViewer] useEffect triggered - quizzes.length:', quizzes.length, 'folderName:', folderName);
     if (quizzes.length > 0) {
-      const tree = buildTreeFromQuizzes(quizzes);
-      setTreeNodes(tree);
       loadReviewedQuizzes();
     }
   }, [quizzes, folderName]);
+
+  // Rebuild trees when reviewedQuizzes changes
+  useEffect(() => {
+    if (quizzes.length > 0) {
+      const reviewedQuizIds = Array.from(reviewedQuizzes);
+      const unreviewedQuizzes = quizzes.filter(quiz => !reviewedQuizzes.has(quiz.id));
+      const reviewedQuizzesFiltered = quizzes.filter(quiz => reviewedQuizzes.has(quiz.id));
+      
+      console.log('🔍 [QuizViewer] Building trees - Unreviewed:', unreviewedQuizzes.length, 'Reviewed:', reviewedQuizzesFiltered.length);
+      
+      const unreviewedTree = buildTreeFromQuizzes(unreviewedQuizzes);
+      const reviewedTree = buildTreeFromQuizzes(reviewedQuizzesFiltered);
+      
+      setTreeNodes(unreviewedTree);
+      setReviewedTreeNodes(reviewedTree);
+    }
+  }, [quizzes, reviewedQuizzes]);
 
   // Check if there's any feedback including approval status (for display purposes)
   const hasAnyFeedback = (feedback: any) => {
@@ -65,7 +82,6 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
       const feedbackWithStatus = feedbackData.map(f => ({
         quiz_id: f.quiz_id,
         hasAnyFeedback: hasAnyFeedback(f),
-        approved: f.approved,
         standard_alignment_rating: f.standard_alignment_rating,
         quality_rating: f.quality_rating,
         pedagogy_rating: f.pedagogy_rating,
@@ -468,21 +484,66 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
         style={{ width: `${leftPanelWidth}%` }}
       >
         <div className="h-full flex flex-col">
+          {/* Tabs */}
+          <div className="border-b border-gray-200 bg-white">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('to-review')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'to-review'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                To Review ({quizzes.length - reviewedQuizzes.size})
+              </button>
+              <button
+                onClick={() => setActiveTab('reviewed')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'reviewed'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Reviewed ({reviewedQuizzes.size})
+              </button>
+            </div>
+          </div>
+          
           {/* Tree View */}
           <div className="flex-1 overflow-hidden">
-            {treeNodes.length > 0 ? (
-              <TreeView 
-                nodes={treeNodes}
-                onQuizSelect={handleQuizSelect}
-                selectedQuizId={selectedQuiz?.id}
-                reviewedQuizzes={reviewedQuizzes}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <div className="text-center">
-                  <p className="text-sm">Loading quiz hierarchy...</p>
+            {activeTab === 'to-review' ? (
+              treeNodes.length > 0 ? (
+                <TreeView 
+                  nodes={treeNodes}
+                  onQuizSelect={handleQuizSelect}
+                  selectedQuizId={selectedQuiz?.id}
+                  reviewedQuizzes={new Set()} // Don't show reviewed badges in to-review tab
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="text-center">
+                    <p className="text-sm">All quizzes have been reviewed!</p>
+                    <p className="text-xs text-gray-400 mt-1">Switch to "Reviewed" tab to see completed quizzes</p>
+                  </div>
                 </div>
-              </div>
+              )
+            ) : (
+              reviewedTreeNodes.length > 0 ? (
+                <TreeView 
+                  nodes={reviewedTreeNodes}
+                  onQuizSelect={handleQuizSelect}
+                  selectedQuizId={selectedQuiz?.id}
+                  reviewedQuizzes={reviewedQuizzes} // Show reviewed badges in reviewed tab
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="text-center">
+                    <p className="text-sm">No quizzes reviewed yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Start reviewing quizzes to see them here</p>
+                  </div>
+                </div>
+              )
             )}
           </div>
         </div>

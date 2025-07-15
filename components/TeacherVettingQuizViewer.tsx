@@ -21,9 +21,11 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
   const [selectedQuiz, setSelectedQuiz] = useState<QuizSummary | null>(null);
   const [iframeKey, setIframeKey] = useState(0);
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
+  const [reviewedTreeNodes, setReviewedTreeNodes] = useState<TreeNode[]>([]);
   const [showInlineFeedback, setShowInlineFeedback] = useState(false);
   const [existingFeedback, setExistingFeedback] = useState<any>(null);
   const [reviewedQuizzes, setReviewedQuizzes] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<'to-review' | 'reviewed'>('to-review');
   const [isViewMode, setIsViewMode] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(33); // percentage
@@ -37,21 +39,41 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
   useEffect(() => {
     console.log('🔍 [TeacherVetting] useEffect triggered - quizzes.length:', quizzes.length, 'folderName:', folderName);
     if (quizzes.length > 0) {
-      const tree = buildTreeFromQuizzes(quizzes);
-      setTreeNodes(tree);
       loadReviewedQuizzes();
     }
   }, [quizzes, folderName]);
+
+  // Rebuild trees when reviewedQuizzes changes
+  useEffect(() => {
+    if (quizzes.length > 0) {
+      const reviewedQuizIds = Array.from(reviewedQuizzes);
+      const unreviewedQuizzes = quizzes.filter(quiz => !reviewedQuizzes.has(quiz.id));
+      const reviewedQuizzesFiltered = quizzes.filter(quiz => reviewedQuizzes.has(quiz.id));
+      
+      console.log('🔍 [TeacherVetting] Building trees - Unreviewed:', unreviewedQuizzes.length, 'Reviewed:', reviewedQuizzesFiltered.length);
+      
+      const unreviewedTree = buildTreeFromQuizzes(unreviewedQuizzes);
+      const reviewedTree = buildTreeFromQuizzes(reviewedQuizzesFiltered);
+      
+      setTreeNodes(unreviewedTree);
+      setReviewedTreeNodes(reviewedTree);
+    }
+  }, [quizzes, reviewedQuizzes]);
 
   // Load reviewed quizzes status
   const loadReviewedQuizzes = async () => {
     try {
       console.log('🔍 [TeacherVetting] loadReviewedQuizzes called for folder:', folderName);
+      console.log('🔍 [TeacherVetting] folderName type:', typeof folderName);
+      console.log('🔍 [TeacherVetting] folderName length:', folderName.length);
+      console.log('🔍 [TeacherVetting] folderName JSON:', JSON.stringify(folderName));
       const quizIds = quizzes.map(q => q.id);
-      console.log('🔍 [TeacherVetting] Quiz IDs to check:', quizIds);
+      console.log('🔍 [TeacherVetting] Quiz IDs to check (first 5):', quizIds.slice(0, 5));
+      console.log('🔍 [TeacherVetting] Currently selected quiz:', selectedQuiz?.id);
       
       const feedbackData = await getTeacherVettingFeedbackForQuizzes(folderName, quizIds);
       console.log('🔍 [TeacherVetting] Raw feedback data:', feedbackData);
+      console.log('🔍 [TeacherVetting] Raw feedback data length:', feedbackData.length);
       
       const feedbackWithStatus = feedbackData.map(f => ({
         quiz_id: f.quiz_id,
@@ -624,21 +646,66 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
             </div>
           </div>
           
+          {/* Tabs */}
+          <div className="border-b border-gray-200 bg-white">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('to-review')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'to-review'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                To Review ({quizzes.length - reviewedQuizzes.size})
+              </button>
+              <button
+                onClick={() => setActiveTab('reviewed')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === 'reviewed'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Reviewed ({reviewedQuizzes.size})
+              </button>
+            </div>
+          </div>
+          
           {/* Tree View */}
           <div className="flex-1 overflow-hidden">
-            {treeNodes.length > 0 ? (
-              <TreeView 
-                nodes={treeNodes}
-                onQuizSelect={handleQuizSelect}
-                selectedQuizId={selectedQuiz?.id}
-                reviewedQuizzes={reviewedQuizzes}
-              />
-            ) : (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <div className="text-center">
-                  <p className="text-sm">Loading quiz hierarchy...</p>
+            {activeTab === 'to-review' ? (
+              treeNodes.length > 0 ? (
+                <TreeView 
+                  nodes={treeNodes}
+                  onQuizSelect={handleQuizSelect}
+                  selectedQuizId={selectedQuiz?.id}
+                  reviewedQuizzes={new Set()} // Don't show reviewed badges in to-review tab
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="text-center">
+                    <p className="text-sm">All quizzes have been reviewed!</p>
+                    <p className="text-xs text-gray-400 mt-1">Switch to "Reviewed" tab to see completed quizzes</p>
+                  </div>
                 </div>
-              </div>
+              )
+            ) : (
+              reviewedTreeNodes.length > 0 ? (
+                <TreeView 
+                  nodes={reviewedTreeNodes}
+                  onQuizSelect={handleQuizSelect}
+                  selectedQuizId={selectedQuiz?.id}
+                  reviewedQuizzes={reviewedQuizzes} // Show reviewed badges in reviewed tab
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="text-center">
+                    <p className="text-sm">No quizzes reviewed yet</p>
+                    <p className="text-xs text-gray-400 mt-1">Start reviewing quizzes to see them here</p>
+                  </div>
+                </div>
+              )
             )}
           </div>
         </div>

@@ -27,6 +27,20 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(node.isExpanded || false);
   
+  // Debug logging for quiz nodes
+  if (node.type === 'quiz' && node.quizId) {
+    console.log('🔍 [TreeView] Quiz check:', {
+      quizId: node.quizId,
+      hasReviewedQuizzes: !!reviewedQuizzes,
+      isInReviewedSet: reviewedQuizzes?.has(node.quizId),
+      reviewedQuizzesArray: reviewedQuizzes ? Array.from(reviewedQuizzes) : 'undefined'
+    });
+    
+    if (reviewedQuizzes?.has(node.quizId)) {
+      console.log('🔍 [TreeView] Rendering "Reviewed" label for quiz:', node.quizId);
+    }
+  }
+  
   // Update expansion state when node.isExpanded changes (for search filtering)
   useEffect(() => {
     if (node.isExpanded !== undefined) {
@@ -139,15 +153,8 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
                 <div className="flex items-center text-green-600 ml-2">
                   <Check className="w-3 h-3 mr-1" />
                   <span className="text-xs font-medium">Reviewed</span>
-                  {console.log('🔍 [TreeView] Rendering "Reviewed" label for quiz:', node.quizId)}
                 </div>
               )}
-              {node.type === 'quiz' && node.quizId && console.log('🔍 [TreeView] Quiz check:', {
-                quizId: node.quizId,
-                hasReviewedQuizzes: !!reviewedQuizzes,
-                isInReviewedSet: reviewedQuizzes?.has(node.quizId),
-                reviewedQuizzesArray: reviewedQuizzes ? Array.from(reviewedQuizzes) : 'undefined'
-              })}
             </div>
           </div>
         </div>
