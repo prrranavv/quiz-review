@@ -139,8 +139,15 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
                 <div className="flex items-center text-green-600 ml-2">
                   <Check className="w-3 h-3 mr-1" />
                   <span className="text-xs font-medium">Reviewed</span>
+                  {console.log('🔍 [TreeView] Rendering "Reviewed" label for quiz:', node.quizId)}
                 </div>
               )}
+              {node.type === 'quiz' && node.quizId && console.log('🔍 [TreeView] Quiz check:', {
+                quizId: node.quizId,
+                hasReviewedQuizzes: !!reviewedQuizzes,
+                isInReviewedSet: reviewedQuizzes?.has(node.quizId),
+                reviewedQuizzesArray: reviewedQuizzes ? Array.from(reviewedQuizzes) : 'undefined'
+              })}
             </div>
           </div>
         </div>
@@ -166,6 +173,11 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
 
 const TreeView: React.FC<TreeViewProps> = ({ nodes, onQuizSelect, selectedQuizId, reviewedQuizzes }) => {
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Debug log when reviewedQuizzes prop changes
+  useEffect(() => {
+    console.log('🔍 [TreeView] reviewedQuizzes prop changed:', reviewedQuizzes ? Array.from(reviewedQuizzes) : 'undefined');
+  }, [reviewedQuizzes]);
 
   // Function to check if a node matches the search term
   const matchesSearch = (node: TreeNode, term: string): boolean => {

@@ -35,6 +35,7 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
 
   // Build tree structure from quizzes and load feedback data
   useEffect(() => {
+    console.log('🔍 [TeacherVetting] useEffect triggered - quizzes.length:', quizzes.length, 'folderName:', folderName);
     if (quizzes.length > 0) {
       const tree = buildTreeFromQuizzes(quizzes);
       setTreeNodes(tree);
@@ -45,15 +46,34 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
   // Load reviewed quizzes status
   const loadReviewedQuizzes = async () => {
     try {
+      console.log('🔍 [TeacherVetting] loadReviewedQuizzes called for folder:', folderName);
       const quizIds = quizzes.map(q => q.id);
+      console.log('🔍 [TeacherVetting] Quiz IDs to check:', quizIds);
+      
       const feedbackData = await getTeacherVettingFeedbackForQuizzes(folderName, quizIds);
+      console.log('🔍 [TeacherVetting] Raw feedback data:', feedbackData);
+      
+      const feedbackWithStatus = feedbackData.map(f => ({
+        quiz_id: f.quiz_id,
+        hasAnyFeedback: hasAnyFeedback(f),
+        approved: f.approved,
+        usability: f.usability,
+        standards_alignment: f.standards_alignment,
+        jtbd: f.jtbd,
+        feedback: f.feedback
+      }));
+      console.log('🔍 [TeacherVetting] Feedback with hasAnyFeedback status:', feedbackWithStatus);
+      
       const reviewed = new Set(feedbackData
         .filter(f => hasAnyFeedback(f))
         .map(f => f.quiz_id)
       );
+      console.log('🔍 [TeacherVetting] Final reviewed quizzes set:', Array.from(reviewed));
+      
       setReviewedQuizzes(reviewed);
+      console.log('🔍 [TeacherVetting] setReviewedQuizzes called with:', Array.from(reviewed));
     } catch (error) {
-      console.error('Error loading reviewed quizzes:', error);
+      console.error('❌ [TeacherVetting] Error loading reviewed quizzes:', error);
     }
   };
 
@@ -110,10 +130,12 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
   };
 
   const handleCloseFeedback = async () => {
+    console.log('🔍 [TeacherVetting] handleCloseFeedback called');
     setShowInlineFeedback(false);
     setIsViewMode(false);
     await loadQuizFeedback();
     await loadReviewedQuizzes();
+    console.log('🔍 [TeacherVetting] handleCloseFeedback completed');
   };
 
   // Check if there's detailed feedback (excluding approval status)
@@ -128,13 +150,28 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
 
   // Check if there's any feedback including approval status (for display purposes)
   const hasAnyFeedback = (feedback: any) => {
-    return feedback && (
+    const result = feedback && (
       feedback.usability || 
       feedback.standards_alignment || 
       feedback.jtbd || 
       feedback.feedback ||
       (feedback.approved !== null && feedback.approved !== undefined)
     );
+    
+    // Debug log for each feedback check
+    if (feedback) {
+      console.log('🔍 [TeacherVetting] hasAnyFeedback check for quiz:', feedback.quiz_id, {
+        usability: feedback.usability,
+        standards_alignment: feedback.standards_alignment,
+        jtbd: feedback.jtbd,
+        feedback: feedback.feedback,
+        approved: feedback.approved,
+        result: result,
+        fullFeedbackObject: feedback
+      });
+    }
+    
+    return result;
   };
 
   const handleCopyQuizId = async () => {
@@ -227,8 +264,10 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
       });
       
       // Refresh feedback data
+      console.log('🔍 [TeacherVetting] Refreshing feedback data after approval action');
       await loadQuizFeedback();
       await loadReviewedQuizzes();
+      console.log('🔍 [TeacherVetting] Feedback data refresh completed');
     } catch (err) {
       toast({
         variant: "destructive",

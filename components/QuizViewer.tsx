@@ -31,6 +31,7 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
 
   // Build tree structure from quizzes and load feedback data
   useEffect(() => {
+    console.log('🔍 [QuizViewer] useEffect triggered - quizzes.length:', quizzes.length, 'folderName:', folderName);
     if (quizzes.length > 0) {
       const tree = buildTreeFromQuizzes(quizzes);
       setTreeNodes(tree);
@@ -54,15 +55,36 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
   // Load reviewed quizzes status
   const loadReviewedQuizzes = async () => {
     try {
+      console.log('🔍 [QuizViewer] loadReviewedQuizzes called for folder:', folderName);
       const quizIds = quizzes.map(q => q.id);
+      console.log('🔍 [QuizViewer] Quiz IDs to check:', quizIds);
+      
       const feedbackData = await getFeedbackForQuizzes(folderName, quizIds);
+      console.log('🔍 [QuizViewer] Raw feedback data:', feedbackData);
+      
+      const feedbackWithStatus = feedbackData.map(f => ({
+        quiz_id: f.quiz_id,
+        hasAnyFeedback: hasAnyFeedback(f),
+        approved: f.approved,
+        standard_alignment_rating: f.standard_alignment_rating,
+        quality_rating: f.quality_rating,
+        pedagogy_rating: f.pedagogy_rating,
+        feedback_text: f.feedback_text,
+        thumbs_up: f.thumbs_up,
+        thumbs_down: f.thumbs_down
+      }));
+      console.log('🔍 [QuizViewer] Feedback with hasAnyFeedback status:', feedbackWithStatus);
+      
       const reviewed = new Set(feedbackData
         .filter(f => hasAnyFeedback(f))
         .map(f => f.quiz_id)
       );
+      console.log('🔍 [QuizViewer] Final reviewed quizzes set:', Array.from(reviewed));
+      
       setReviewedQuizzes(reviewed);
+      console.log('🔍 [QuizViewer] setReviewedQuizzes called with:', Array.from(reviewed));
     } catch (error) {
-      console.error('Error loading reviewed quizzes:', error);
+      console.error('❌ [QuizViewer] Error loading reviewed quizzes:', error);
     }
   };
 
