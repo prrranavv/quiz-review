@@ -3,7 +3,7 @@ import { QuizSummary, TreeNode } from '../types';
 import TreeView from './TreeView';
 import TeacherVettingInlineFeedback from '@/components/TeacherVettingInlineFeedback';
 import { buildTreeFromQuizzes } from '../utils/treeBuilder';
-import { saveTeacherVettingFeedback, getTeacherVettingFeedbackForQuizzes, getSpecificTeacherVettingFeedback, renameTeacherVettingFile } from '../utils/supabase';
+import { saveTeacherVettingFeedback, getTeacherVettingFeedbackForQuizzes, getSpecificTeacherVettingFeedback, renameTeacherVettingFile, supabase } from '../utils/supabase';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -71,9 +71,31 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
       console.log('🔍 [TeacherVetting] Quiz IDs to check (first 5):', quizIds.slice(0, 5));
       console.log('🔍 [TeacherVetting] Currently selected quiz:', selectedQuiz?.id);
       
+      // First, test if there are ANY records for this folder (without quiz ID filter)
+      console.log('🔍 [TeacherVetting] Testing: checking for ANY records with this folder name...');
+      const { data: allFolderRecords } = await supabase
+        .from('teacher_vetting_feedback')
+        .select('*')
+        .eq('folder_name', folderName);
+      console.log('🔍 [TeacherVetting] Records found for folder:', allFolderRecords?.length || 0, allFolderRecords);
+
       const feedbackData = await getTeacherVettingFeedbackForQuizzes(folderName, quizIds);
       console.log('🔍 [TeacherVetting] Raw feedback data:', feedbackData);
       console.log('🔍 [TeacherVetting] Raw feedback data length:', feedbackData.length);
+      
+      // Debug individual feedback entries to understand structure
+      feedbackData.forEach((fb, index) => {
+        console.log(`🔍 [TeacherVetting] Feedback entry ${index}:`, {
+          quiz_id: fb.quiz_id,
+          approved: fb.approved,
+          approvedType: typeof fb.approved,
+          hasUsability: !!fb.usability,
+          hasStandardsAlignment: !!fb.standards_alignment,
+          hasJtbd: !!fb.jtbd,
+          hasFeedback: !!fb.feedback,
+          fullEntry: fb
+        });
+      });
       
       const feedbackWithStatus = feedbackData.map(f => ({
         quiz_id: f.quiz_id,
@@ -127,19 +149,6 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
     setIsDescriptionExpanded(false);
   };
 
-  const handleRefreshPreview = () => {
-    const iframe = document.querySelector('iframe[title*="Preview of"]') as HTMLIFrameElement;
-    if (iframe) {
-      const originalSrc = iframe.src;
-      iframe.src = 'about:blank';
-      setTimeout(() => {
-        iframe.src = originalSrc;
-        setIframeKey(prev => prev + 1);
-      }, 100);
-    } else {
-      setIframeKey(prev => prev + 1);
-    }
-  };
 
   const handleToggleFeedback = () => {
     if (existingFeedback && hasDetailedFeedback(existingFeedback)) {
@@ -172,26 +181,34 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
 
   // Check if there's any feedback including approval status (for display purposes)
   const hasAnyFeedback = (feedback: any) => {
-    const result = feedback && (
+    if (!feedback) return false;
+    
+    // Check if there's any meaningful feedback content
+    const hasContent = !!(
       feedback.usability || 
       feedback.standards_alignment || 
       feedback.jtbd || 
-      feedback.feedback ||
-      (feedback.approved !== null && feedback.approved !== undefined)
+      feedback.feedback
     );
     
+    // Check if there's an approval decision (true or false, but not null/undefined)
+    const hasApprovalDecision = feedback.approved === true || feedback.approved === false;
+    
+    // A quiz is considered reviewed if it has either content feedback OR an approval decision
+    const result = hasContent || hasApprovalDecision;
+    
     // Debug log for each feedback check
-    if (feedback) {
-      console.log('🔍 [TeacherVetting] hasAnyFeedback check for quiz:', feedback.quiz_id, {
-        usability: feedback.usability,
-        standards_alignment: feedback.standards_alignment,
-        jtbd: feedback.jtbd,
-        feedback: feedback.feedback,
-        approved: feedback.approved,
-        result: result,
-        fullFeedbackObject: feedback
-      });
-    }
+    console.log('🔍 [TeacherVetting] hasAnyFeedback check for quiz:', feedback.quiz_id, {
+      usability: feedback.usability,
+      standards_alignment: feedback.standards_alignment,
+      jtbd: feedback.jtbd,
+      feedback: feedback.feedback,
+      approved: feedback.approved,
+      hasContent: hasContent,
+      hasApprovalDecision: hasApprovalDecision,
+      result: result,
+      fullFeedbackObject: feedback
+    });
     
     return result;
   };
@@ -566,8 +583,6 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
   };
 
   const totalQuizzes = quizzes.length;
-  const reviewedCount = reviewedQuizzes.size;
-  const pendingCount = totalQuizzes - reviewedCount;
 
   return (
     <div className="flex h-screen bg-gray-50 relative">

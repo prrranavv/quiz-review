@@ -524,18 +524,73 @@ export const getTeacherVettingFeedbackForQuizzes = async (folderName: string, qu
   }
   
   try {
-    const { data, error } = await supabase
-      .from('teacher_vetting_feedback')
-      .select('*')
-      .eq('folder_name', folderName)
-      .in('quiz_id', quizIds)
+    console.log('🔍 [Supabase] getTeacherVettingFeedbackForQuizzes called with:', {
+      folderName,
+      folderNameLength: folderName.length,
+      folderNameCharCodes: Array.from(folderName).map(c => c.charCodeAt(0)),
+      quizIdsCount: quizIds.length,
+      firstFewQuizIds: quizIds.slice(0, 3)
+    });
+
+    // Handle large arrays by chunking (Supabase has limits on IN clause size)
+    const CHUNK_SIZE = 100; // Limit chunk size to avoid "Bad Request" errors
+    let allData: any[] = [];
     
-    if (error) {
-      throw new Error(`Failed to fetch teacher vetting feedback: ${error.message}`)
+    if (quizIds.length === 0) {
+      console.log('🔍 [Supabase] No quiz IDs provided, returning empty array');
+      return [];
+    }
+
+    // Split quiz IDs into chunks to avoid query size limits
+    for (let i = 0; i < quizIds.length; i += CHUNK_SIZE) {
+      const chunk = quizIds.slice(i, i + CHUNK_SIZE);
+      console.log(`🔍 [Supabase] Processing chunk ${Math.floor(i/CHUNK_SIZE) + 1}/${Math.ceil(quizIds.length/CHUNK_SIZE)}, size: ${chunk.length}`);
+      
+      const { data, error } = await supabase
+        .from('teacher_vetting_feedback')
+        .select('*')
+        .eq('folder_name', folderName)
+        .in('quiz_id', chunk);
+      
+      if (error) {
+        console.error('🔍 [Supabase] Chunk query error:', error);
+        throw new Error(`Failed to fetch teacher vetting feedback: ${error.message}`)
+      }
+      
+      if (data) {
+        allData = [...allData, ...data];
+      }
+    }
+
+    // If no results, try some debugging queries
+    if (allData.length === 0) {
+      console.log('🔍 [Supabase] No matches found, running debug queries...');
+      
+      // Check if any records exist for this folder
+      const { data: folderCheck } = await supabase
+        .from('teacher_vetting_feedback')
+        .select('quiz_id, approved')
+        .eq('folder_name', folderName)
+        .limit(5);
+      console.log('🔍 [Supabase] Records for this folder (any quiz_id):', folderCheck?.length || 0, folderCheck);
+      
+      // Check all folder names in database
+      const { data: allFolders } = await supabase
+        .from('teacher_vetting_feedback')
+        .select('folder_name')
+        .limit(10);
+      console.log('🔍 [Supabase] All folder names in database:', 
+        Array.from(new Set(allFolders?.map(f => f.folder_name) || [])));
     }
     
-    return data || []
+    console.log('🔍 [Supabase] Final query result:', {
+      dataLength: allData.length,
+      firstFewResults: allData.slice(0, 3)
+    });
+    
+    return allData;
   } catch (err) {
+    console.error('🔍 [Supabase] Error in getTeacherVettingFeedbackForQuizzes:', err);
     if (err instanceof Error) {
       throw err
     }
