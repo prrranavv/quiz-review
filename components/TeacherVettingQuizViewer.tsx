@@ -47,7 +47,10 @@ const TeacherVettingQuizViewer: React.FC<TeacherVettingQuizViewerProps> = ({ qui
     try {
       const quizIds = quizzes.map(q => q.id);
       const feedbackData = await getTeacherVettingFeedbackForQuizzes(folderName, quizIds);
-      const reviewed = new Set(feedbackData.map(f => f.quiz_id));
+      const reviewed = new Set(feedbackData
+        .filter(f => hasAnyFeedback(f))
+        .map(f => f.quiz_id)
+      );
       setReviewedQuizzes(reviewed);
     } catch (error) {
       console.error('Error loading reviewed quizzes:', error);

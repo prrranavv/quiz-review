@@ -38,12 +38,28 @@ const QuizViewer: React.FC<QuizViewerProps> = ({ quizzes, onBack, folderName }) 
     }
   }, [quizzes, folderName]);
 
+  // Check if there's any feedback including approval status (for display purposes)
+  const hasAnyFeedback = (feedback: any) => {
+    return feedback && (
+      feedback.standard_alignment_rating || 
+      feedback.quality_rating || 
+      feedback.pedagogy_rating || 
+      feedback.feedback_text ||
+      feedback.thumbs_up ||
+      feedback.thumbs_down ||
+      (feedback.approved !== null && feedback.approved !== undefined)
+    );
+  };
+
   // Load reviewed quizzes status
   const loadReviewedQuizzes = async () => {
     try {
       const quizIds = quizzes.map(q => q.id);
       const feedbackData = await getFeedbackForQuizzes(folderName, quizIds);
-      const reviewed = new Set(feedbackData.map(f => f.quiz_id));
+      const reviewed = new Set(feedbackData
+        .filter(f => hasAnyFeedback(f))
+        .map(f => f.quiz_id)
+      );
       setReviewedQuizzes(reviewed);
     } catch (error) {
       console.error('Error loading reviewed quizzes:', error);
